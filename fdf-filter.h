@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+/*
+ * 	FDF - Flexible Discovery Forwarder
+ *
+ *	fdf-filter.h - Filter plugin API
+ *
+ *	Copyright 2022 Ian Pilcher <arequipeno@gmail.com>
+ */
+
 #ifndef FDF_FILTER_H
 #define FDF_FILTER_H
 
