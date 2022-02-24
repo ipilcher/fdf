@@ -1,0 +1,8 @@
+{
+	fdf_filter_register;
+	fdf_filter_log;
+	fdf_filter_sock_addr;
+	fdf_filter_netif_name;
+	fdf_filter_set_data;
+	fdf_filter_get_data;
+};
