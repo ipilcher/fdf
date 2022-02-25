@@ -10,6 +10,7 @@
 
 #include <fdf-filter.h>
 
+#include <errno.h>
 #include <inttypes.h>
 #include <savl.h>
 #include <string.h>
@@ -18,15 +19,16 @@
 #include <syslog.h>
 #include <time.h>
 
-#define MDNS_MODE_QUERY		0
-#define MDNS_MODE_ANSWER	1
+#define MDNS_ACCEPT_QUERIES	0
+#define MDNS_ACCEPT_RESPONSES	1
+
+#define MDNS_MODE_STATELESS	0
+#define MDNS_MODE_STATEFUL	1
 
 #define MDNS_DNS_HDR_SIZE	12
 #define MDNS_CLASS_COUNT	4
 #define MDNS_CLASS_IN		1
 #define MDNS_TYPE_ANY		255
-
-#define MDNS_QUESTION_LIFE	30
 
 union mdns_pkt {
 	struct {
@@ -110,7 +112,12 @@ struct mdns_type {
 	const char *	name;
 };
 
-static _Bool mdns_stateful = 1;
+static _Bool mdns_mode = MDNS_MODE_STATELESS;
+static _Bool mdns_mode_set = 0;
+
+static uint16_t mdns_query_life = 30;
+static _Bool mdns_qlife_set = 0;
+
 static struct savl_node *mdns_questions = NULL;
 static struct mdns_question *mdns_oldest = NULL;
 static struct mdns_question *mdns_newest = NULL;
@@ -156,7 +163,7 @@ static void mdns_add_question(struct mdns_question *question,
 	union savl_key key;
 
 	question->netif = netif;
-	question->expires = now + MDNS_QUESTION_LIFE;
+	question->expires = now + mdns_query_life;
 
 	key.p = &question->c;
 	existing_node = savl_force_add(&mdns_questions, mdns_question_cmp,
@@ -655,7 +662,7 @@ static uint8_t mdns_match_query(const uintptr_t handle,
 		return FDF_FILTER_DROP_NOW;
 	}
 
-	if (!mdns_stateful)
+	if (mdns_mode == MDNS_MODE_STATELESS)
 		return FDF_FILTER_PASS;
 
 	if (mdns_parse_questions(handle, pkt, pkt_size, in_netif) == 0)
@@ -680,7 +687,7 @@ static uint8_t mdns_match_response(const uintptr_t handle,
 		return FDF_FILTER_DROP_NOW;
 	}
 
-	if (!mdns_stateful)
+	if (mdns_mode == MDNS_MODE_STATELESS)
 		return FDF_FILTER_PASS;
 
 	*fwd_netif_out = 0;
@@ -700,7 +707,7 @@ static uint8_t mdns_match(const uintptr_t handle,
 			  uintptr_t *const fwd_netif_out)
 {
 	char buf[FDF_FILTER_SA6_LEN];
-	union fdf_filter_data mode;
+	union fdf_filter_data accept;
 	const union mdns_pkt *pkt;
 
 	if (pkt_size < sizeof(union mdns_pkt)) {
@@ -711,9 +718,9 @@ static uint8_t mdns_match(const uintptr_t handle,
 	}
 
 	pkt = FDF_FILTER_PKT_AS(union mdns_pkt, raw_pkt);
-	mode = fdf_filter_get_data(handle);
+	accept = fdf_filter_get_data(handle);
 
-	if (mode.b == MDNS_MODE_QUERY) {
+	if (accept.b == MDNS_ACCEPT_QUERIES) {
 
 		if (mdns_is_answer(pkt)) {
 			fdf_filter_log(handle, LOG_DEBUG,
@@ -735,33 +742,147 @@ static uint8_t mdns_match(const uintptr_t handle,
 	}
 }
 
+static _Bool mdns_parse_mode(const uintptr_t handle, const char *const arg)
+{
+	if (mdns_mode_set) {
+		fdf_filter_log(handle, LOG_ERR, "mDNS filter mode already set");
+		return 1;
+	}
+
+	mdns_mode_set = 1;
+
+	if (strcmp(arg, "stateless") == 0) {
+		mdns_mode = MDNS_MODE_STATELESS;
+		fdf_filter_log(handle, LOG_DEBUG,
+			       "mDNS filter mode set to STATELESS");
+		return 0;
+	}
+
+	if (strcmp(arg, "stateful") == 0) {
+		mdns_mode = MDNS_MODE_STATEFUL;
+		fdf_filter_log(handle, LOG_DEBUG,
+			       "mDNS filter mode set to STATEFUL");
+		return 0;
+	}
+
+	fdf_filter_log(handle, LOG_ERR, "Unknown mDNS filter mode: %s", arg);
+	return 1;
+}
+
+static _Bool mdns_parse_qlife(const uintptr_t handle, const char *const arg)
+{
+	long qlife;
+	char *endptr;
+
+	if (mdns_qlife_set) {
+		fdf_filter_log(handle, LOG_ERR, "mDNS query life already set");
+		return 1;
+	}
+
+	mdns_qlife_set = 1;
+
+	/* Don't accept leading whitespace or sign */
+	if (*arg < '0' || *arg > '9') {
+		fdf_filter_log(handle, LOG_ERR, "Invalid query life: %s", arg);
+		return 1;
+	}
+
+	errno = 0;
+	qlife = strtol(arg, &endptr, 10);
+	if (errno != 0 || *endptr != 0) {
+		fdf_filter_log(handle, LOG_ERR, "Invalid query life: %s", arg);
+		return 1;
+	}
+
+	if (qlife < 30 || qlife > 3600) {
+		fdf_filter_log(handle, LOG_ERR,
+			       "Query life out of range (30-3600): %s", arg);
+		return 1;
+	}
+
+	mdns_query_life = qlife;
+	return 1;
+}
+
+static _Bool mdns_parse_accept(const uintptr_t handle,
+			       const char *restrict const arg,
+			       _Bool *const accept_out, const _Bool already_set)
+{
+	if (already_set) {
+		fdf_filter_log(handle, LOG_ERR,
+			       "mDNS filter instance accept type already set");
+		return 1;
+	}
+
+	if (strcmp(arg, "queries") == 0) {
+		*accept_out = MDNS_ACCEPT_QUERIES;
+		fdf_filter_log(handle, LOG_DEBUG,
+			"mDNS filter instance accept type set to QUERIES");
+		return 0;
+	}
+
+	if (strcmp(arg, "responses") == 0) {
+		*accept_out = MDNS_ACCEPT_RESPONSES;
+		fdf_filter_log(handle, LOG_DEBUG,
+			"mDNS filter instance accept type set to RESPONSES");
+		return 0;
+	}
+
+	fdf_filter_log(handle, LOG_ERR,
+		       "Unknown mDNS filter accept type: %s", arg);
+	return 1;
+}
+
 static _Bool mdns_init(const uintptr_t handle,
 		       const int argc, const char *const *const argv)
 {
-	union fdf_filter_data mode;
+	union fdf_filter_data accept;
+	_Bool err, accept_set;
+	int i;
 
-	if (argc != 3) {
+	if (argc < 3 || argc > 5) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "%s requires exactly 1 argument", argv[1]);
+			       "%s requires between 1 and 3 arguments",
+			       argv[1]);
 		return 0;
 	}
 
-	if (strcmp(argv[2], "query") == 0) {
-		mode.b = MDNS_MODE_QUERY;
+	accept_set = 0;
+
+	for (i = 2; i < argc; ++i) {
+
+		err = 0;
+
+		if (strncmp(argv[i], "mode=", 5) == 0) {
+			err = mdns_parse_mode(handle, argv[i] + 5);
+		}
+		else if (strncmp(argv[i], "query_life=", 11) == 0) {
+			err = mdns_parse_qlife(handle, argv[i] + 11);
+		}
+		else if (strncmp(argv[i], "accept=", 7) == 0) {
+			err = mdns_parse_accept(handle, argv[i] + 7,
+						&accept.b, accept_set);
+			accept_set = 1;
+		}
+		else {
+			fdf_filter_log(handle, LOG_ERR,
+				       "Unknown argument: %s", argv[i]);
+			return 0;
+		}
+
+		if (err)
+			return 0;
 	}
-	else if (strcmp(argv[2], "answer") == 0) {
-		mode.b = MDNS_MODE_ANSWER;
-	}
-	else {
+
+	if (!accept_set) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "%s argument invalid: %s", argv[1], argv[2]);
+			       "accept={queries|responses} argument required");
 		return 0;
 	}
 
-	fdf_filter_set_data(handle, mode);
+	fdf_filter_set_data(handle, accept);
 
-	fdf_filter_log(handle, LOG_INFO, "Initialized mDNS filter: mode = %s",
-		       argv[2]);
+	fdf_filter_log(handle, LOG_DEBUG, "Initialization successful");
 
 	return 1;
 }
