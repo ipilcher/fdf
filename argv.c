@@ -17,7 +17,7 @@ typedef int (*fdf_parse_fn)(char **const argv, const int i, const _Bool flag);
 _Bool fdf_debug = 0;
 _Bool fdf_pktlog = 0;
 _Bool fdf_use_syslog = 0;
-const char *fdf_cfg_json_name = "/etc/ndf-config.json";
+const char *fdf_cfg_json_name = "/etc/fdf-config.json";
 
 static int fdf_parse_output(char **const argv __attribute__((unused)),
 			    const int i __attribute__((unused)),
