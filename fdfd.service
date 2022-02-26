@@ -1,0 +1,13 @@
+[Unit]
+Description=Flexible Discovery Forwarder daemon
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/fdfd
+User=nobody
+Group=nobody
+AmbientCapabilities=CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target
