@@ -761,7 +761,8 @@ static uint8_t mdns_match(const uintptr_t handle,
 		if (mdns_is_answer(pkt)) {
 			fdf_filter_log(handle, LOG_DEBUG,
 				       "  Dropping answer packet");
-			return FDF_FILTER_DROP;
+			return (flags & MDNS_FLAG_CHAINED)
+					? FDF_FILTER_DROP_NOW : FDF_FILTER_DROP;
 		}
 
 		return mdns_match_query(handle, flags, src,
