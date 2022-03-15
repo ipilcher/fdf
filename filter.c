@@ -54,20 +54,20 @@ struct fdf_filter *fdf_get_filter(const char *const name)
 						  fdf_filter_cmp_name, key));
 }
 
-void fdf_filter_add_current(void)
+void fdf_filter_add_current(const _Bool new_so)
 {
-	union savl_key key;
 	const struct savl_node *existing;
 
-	key.p = fdf_current->name;
 	existing = savl_try_add(&fdf_filters_by_name, fdf_filter_cmp_name,
-				key, &fdf_current->name_node);
+				(union savl_key){ .p = fdf_current->name },
+				&fdf_current->name_node);
 	FDF_ASSERT(existing == NULL);  /* JSON format should ensure this */
 
-	if (fdf_current->so_handle != NULL) {
-		key.p = fdf_current->so_handle;
+	if (new_so) {
 		existing = savl_try_add(&fdf_filters_by_so, fdf_filter_cmp_so,
-					key, &fdf_current->so_node);
+					(union savl_key){
+						.p = fdf_current->so_handle
+					}, &fdf_current->so_node);
 		FDF_ASSERT(existing == NULL);
 	}
 }
@@ -84,11 +84,9 @@ static void fdf_free_filter(struct savl_node *const node)
 		filter->info->cleanup_fn((uintptr_t)filter);
 	}
 
-	if (filter->so_handle != NULL) {
-		if (dlclose(filter->so_handle) != 0) {
-			FDF_ABORT("Error closing shared object (%s): %s",
-				  filter->file, dlerror());
-		}
+	if (dlclose(filter->so_handle) != 0) {
+		FDF_ABORT("Error closing shared object (%s): %s",
+			  filter->file, dlerror());
 	}
 
 	for (i = 0; i < filter->argc; ++i)
@@ -161,8 +159,9 @@ void fdf_load_filter(const char *const name, const char *const file,
 		     struct json_object *const args, const size_t num_args)
 {
 	const struct savl_node *existing;
-	union savl_key key;
+	void *so_handle;
 	const char *arg;
+	_Bool new_so;
 	size_t i;
 
 	fdf_current = FDF_VZALLOC(sizeof *fdf_current, num_args, char *);
@@ -176,11 +175,13 @@ void fdf_load_filter(const char *const name, const char *const file,
 		fdf_current->argv[2 + i] = fdf_strdup(arg);
 	}
 
-	fdf_current->so_handle = dlopen(file, RTLD_NOW | RTLD_NOLOAD);
-	if (fdf_current->so_handle == NULL) {
+	so_handle = dlopen(file, RTLD_NOW | RTLD_NOLOAD);
+	new_so = (so_handle == NULL);
 
-		fdf_current->so_handle = dlopen(file, RTLD_NOW | RTLD_LOCAL);
-		if (fdf_current->so_handle == NULL) {
+	if (new_so) {
+
+		so_handle = dlopen(file, RTLD_NOW | RTLD_LOCAL);
+		if (so_handle == NULL) {
 			FDF_FATAL("Error loading filter (%s): %s",
 				  name, dlerror());
 		}
@@ -189,13 +190,8 @@ void fdf_load_filter(const char *const name, const char *const file,
 			FDF_FATAL("Filter (%s) did not register", name);
 	}
 	else {
-		if (dlclose(fdf_current->so_handle) != 0) {
-			FDF_ABORT("Error closing shared object (%s): %s",
-				  file, dlerror());
-		}
-
-		key.p = fdf_current->so_handle;
-		existing = savl_get(fdf_filters_by_so, fdf_filter_cmp_so, key);
+		existing = savl_get(fdf_filters_by_so, fdf_filter_cmp_so,
+				    (union savl_key){ .p = so_handle });
 		if (existing == NULL) {
 			FDF_FATAL("Shared object (%s) was already loaded, but "
 					"it did not register as an NDF filter",
@@ -203,11 +199,11 @@ void fdf_load_filter(const char *const name, const char *const file,
 		}
 
 		fdf_current->info = FDF_FILTER_FROM_SO_NODE(existing)->info;
-		fdf_current->so_handle = NULL;
 	}
 
+	fdf_current->so_handle = so_handle;
 	fdf_init_current();
-	fdf_filter_add_current();
+	fdf_filter_add_current(new_so);
 
 	if (num_args > 0) {
 		FDF_INFO("Loaded filter (%s) from %s %s", name, file,
@@ -355,7 +351,7 @@ static void fdf_ntos4(const struct sockaddr_in *const addr, char *const dst,
 			  fdf_current->name);
 	}
 
-	if (inet_ntop(AF_INET, addr, dst, size) == NULL) {
+	if (inet_ntop(AF_INET, &addr->sin_addr, dst, size) == NULL) {
 		FDF_ABORT("Failed to format IPv4 address from filter (%s)",
 			  fdf_current->name);
 	}
@@ -374,7 +370,7 @@ static void fdf_ntos6(const struct sockaddr_in6 *const addr, char *const dst,
 
 	*dst = '[';
 
-	if (inet_ntop(AF_INET6, addr, dst + 1, size - 1) == NULL) {
+	if (inet_ntop(AF_INET6, &addr->sin6_addr, dst + 1, size - 1) == NULL) {
 		FDF_ABORT("Failed to format IPv6 address from filter (%s)",
 			  fdf_current->name);
 	}
