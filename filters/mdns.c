@@ -20,10 +20,10 @@
 #include <time.h>
 
 #define MDNS_FLAG_FWD_RESP	1
-#define MDNS_FLAG_CHAINED	2
+#define MDNS_FLAG_IPSET		2
 
 #define MDNS_FLAG_FWD_SET	(MDNS_FLAG_FWD_RESP << 16)
-#define MDNS_FLAG_CHAINED_SET	(MDNS_FLAG_CHAINED << 16)
+#define MDNS_FLAG_IPSET_SET	(MDNS_FLAG_IPSET << 16)
 
 #define MDNS_MODE_STATELESS	0
 #define MDNS_MODE_STATEFUL	1
@@ -35,6 +35,10 @@
 
 #define MDNS_QCLASS_QU		0x8000  /* High bit of qclass is QU */
 #define MDNS_CLASS_CF		0x8000  /* High bit of class is cache flush */
+
+#define MDNS_PARSEQ_ERR		-1
+#define MDNS_PARSEQ_QM		0
+#define MDNS_PARSEQ_QU		1
 
 union mdns_pkt {
 	struct {
@@ -535,12 +539,6 @@ static struct mdns_rr *mdns_parse_rr(const uintptr_t handle,
 	return rr;
 }
 
-/*
- * Return values:
- *	-1: error
- *	 0: success
- *	 1: success (unicast response requested)
- */
 static int mdns_parse_questions(const uintptr_t handle,
 				const union mdns_pkt *pkt,
 				const size_t pkt_size, const uintptr_t in_netif)
@@ -549,7 +547,7 @@ static int mdns_parse_questions(const uintptr_t handle,
 	uint16_t qdcount;
 	struct mdns_question *question;
 	struct timespec now;
-	_Bool qu;
+	int result;
 
 	if (clock_gettime(CLOCK_BOOTTIME, &now) < 0) {
 		fdf_filter_log(handle, LOG_CRIT,
@@ -560,13 +558,13 @@ static int mdns_parse_questions(const uintptr_t handle,
 	mdns_remove_old(handle, now.tv_sec);
 	qdcount = ntohs(pkt->qdcount);
 	offset = MDNS_DNS_HDR_SIZE;
-	qu = 0;
+	result = MDNS_PARSEQ_QM;
 
 	while (qdcount-- > 0) {
 
 		question = mdns_parse_question(handle, pkt, pkt_size, offset);
 		if (question == NULL)
-			return -1;
+			return MDNS_PARSEQ_ERR;
 
 		offset += question->c.size;
 
@@ -579,7 +577,7 @@ static int mdns_parse_questions(const uintptr_t handle,
 		}
 
 		if (question->c.qclass & MDNS_QCLASS_QU)
-			qu = 1;
+			result = MDNS_PARSEQ_QU;
 
 		fdf_filter_log(handle, LOG_DEBUG,
 			       "\tquestion: IN %10s\t%s (%s)",
@@ -591,7 +589,7 @@ static int mdns_parse_questions(const uintptr_t handle,
 		mdns_add_question(question, in_netif, now.tv_sec);
 	}
 
-	return qu;
+	return result;
 }
 
 static _Bool mdns_parse_answers(const uintptr_t handle,
@@ -671,6 +669,7 @@ static uint8_t mdns_match_query(const uintptr_t handle, const uintptr_t flags,
 				const size_t pkt_size, const uintptr_t in_netif)
 {
 	char buf[FDF_FILTER_SA6_LEN];
+	uint8_t pass_result;
 
 	if (pkt->ancount > 0) {
 		fdf_filter_sock_addr(handle, src, buf, sizeof buf);
@@ -680,21 +679,23 @@ static uint8_t mdns_match_query(const uintptr_t handle, const uintptr_t flags,
 		return FDF_FILTER_DROP_NOW;
 	}
 
+	/* Result for non-QU query depends on ipset mode */
+	if (flags & MDNS_FLAG_IPSET)
+		pass_result = FDF_FILTER_PASS_NOW;
+	else
+		pass_result = FDF_FILTER_PASS;
+
 	if (mdns_mode == MDNS_MODE_STATELESS)
-		return FDF_FILTER_PASS;
+		return pass_result;
 
 	switch (mdns_parse_questions(handle, pkt, pkt_size, in_netif)) {
 
-		case -1:	return FDF_FILTER_DROP_NOW;
-
-		case  1:	if (flags & MDNS_FLAG_CHAINED)
-					return FDF_FILTER_PASS_NOW;
-
-		/* fallthrough */
-		case  0:	return FDF_FILTER_PASS;
-
-		default:	abort();  /* Suppress compiler warning */
+		case MDNS_PARSEQ_ERR:	return FDF_FILTER_DROP_NOW;
+		case MDNS_PARSEQ_QM:	return pass_result;
+		case MDNS_PARSEQ_QU:	return FDF_FILTER_PASS;
 	}
+
+	abort();  /* Suppress compiler warning */
 }
 
 static uint8_t mdns_match_response(const uintptr_t handle,
@@ -708,7 +709,7 @@ static uint8_t mdns_match_response(const uintptr_t handle,
 	if (pkt->qdcount > 0) {
 		fdf_filter_sock_addr(handle, src, buf, sizeof buf);
 		fdf_filter_log(handle, LOG_WARNING,
-			       "Response from %s contains > 0 answer resources",
+			       "Response from %s contains > 0 questions",
 			       buf);
 		return FDF_FILTER_DROP_NOW;
 	}
@@ -746,7 +747,7 @@ static uint8_t mdns_match(const uintptr_t handle,
 	pkt = FDF_FILTER_PKT_AS(union mdns_pkt, raw_pkt);
 	flags = fdf_filter_get_data(handle).u;
 
-	if (flags & MDNS_FLAG_FWD_RESP) {
+	if (flags & MDNS_FLAG_FWD_RESP) {  /* forward=responses */
 
 		if (mdns_is_query(pkt)) {
 			fdf_filter_log(handle, LOG_DEBUG,
@@ -757,12 +758,15 @@ static uint8_t mdns_match(const uintptr_t handle,
 		return mdns_match_response(handle, src, pkt,
 					   pkt_size, fwd_netif_out);
 	}
-	else {
+	else {  /* forward=queries */
+
 		if (mdns_is_answer(pkt)) {
 			fdf_filter_log(handle, LOG_DEBUG,
 				       "  Dropping answer packet");
-			return (flags & MDNS_FLAG_CHAINED)
-					? FDF_FILTER_DROP_NOW : FDF_FILTER_DROP;
+			if (flags & MDNS_FLAG_IPSET)
+				return FDF_FILTER_DROP_NOW;
+			else
+				return FDF_FILTER_DROP;
 		}
 
 		return mdns_match_query(handle, flags, src,
@@ -843,7 +847,8 @@ static _Bool mdns_parse_fwd(const uintptr_t handle,
 	}
 
 	if (strcmp(arg, "queries") == 0) {
-		*flags |= MDNS_FLAG_FWD_SET;  /* Flags initialized to 0 */
+		*flags &= ~MDNS_FLAG_FWD_RESP;
+		*flags |= MDNS_FLAG_FWD_SET;
 		fdf_filter_log(handle, LOG_DEBUG,
 			       "Instance forward type set to QUERIES");
 		return 0;
@@ -860,25 +865,25 @@ static _Bool mdns_parse_fwd(const uintptr_t handle,
 	return 1;
 }
 
-static _Bool mdns_parse_chained(const uintptr_t handle,
-				const char *restrict const arg,
-				uintptr_t *const flags)
+static _Bool mdns_parse_ipset(const uintptr_t handle,
+			      const char *restrict const arg,
+			      uintptr_t *const flags)
 {
-	if (*flags & MDNS_FLAG_CHAINED_SET) {
+	if (*flags & MDNS_FLAG_IPSET_SET) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "Instance chained mode already set");
+			       "Instance ipset mode already set");
 		return 1;
 	}
 
 	if (strcasecmp(arg, "yes") == 0 || strcasecmp(arg, "true") == 0) {
-		*flags |= (MDNS_FLAG_CHAINED | MDNS_FLAG_CHAINED_SET);
-		fdf_filter_log(handle, LOG_DEBUG,
-			       "Instanced set to CHAINED mode");
+		*flags |= (MDNS_FLAG_IPSET | MDNS_FLAG_IPSET_SET);
+		fdf_filter_log(handle, LOG_DEBUG, "Instance set to IPSET mode");
 		return 0;
 	}
 
 	if (strcasecmp(arg, "no") == 0 || strcasecmp(arg, "false") == 0) {
-		*flags |= MDNS_FLAG_CHAINED_SET;  /* Flags initialized to 0 */
+		*flags &= ~MDNS_FLAG_IPSET;
+		*flags |= MDNS_FLAG_IPSET_SET;
 		fdf_filter_log(handle, LOG_ERR,
 			       "Instance set to UNCHAINED mode");
 		return 0;
@@ -917,8 +922,8 @@ static _Bool mdns_init(const uintptr_t handle,
 		else if (strncmp(argv[i], "forward=", 8) == 0) {
 			err = mdns_parse_fwd(handle, argv[i] + 8, &flags);
 		}
-		else if (strncmp(argv[i], "chained=", 8) == 0) {
-			err = mdns_parse_chained(handle, argv[i] + 8, &flags);
+		else if (strncmp(argv[i], "ipset=", 6) == 0) {
+			err = mdns_parse_ipset(handle, argv[i] + 6, &flags);
 		}
 		else {
 			fdf_filter_log(handle, LOG_ERR,
