@@ -3,7 +3,6 @@
 &copy; 2022 Ian Pilcher <<arequipeno@gmail.com>>
 
 * [**Introduction**](#introduction)
-  * [Multicast DNS](#multicast-dns)
 * [**Building**](#building)
   * [Build Requirements](#build-requirements)
   * [Compiling](#compiling)
@@ -21,72 +20,57 @@
 FDF is a highly configurable service that forwards broadcast and multicast
 discovery packets between networks.
 
-Many networked consumer devices use some type of discovery protocol, allowing
-them to be automatically discovered on home networks.  Examples include:
+Many network devices use some type of discovery protocol, which allows them to
+be automatically discovered by other devices or applications on the network.
+Examples include:
 
 * Google Chromecast devices
+  ([multicast DNS](https://en.wikipedia.org/wiki/Multicast_DNS))
 * DLNA media servers
+  ([SSDP](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol))
 * HDHomeRun television tuners
 * Logitech Squeezebox and UE Radio devices
 
-These protocols mostly assume that they are being used on a simple, flat
-home network.  They use traffic types (IPv4 broadcast and local subnetwork
-multicast) that cannot be routed between networks.  Even when a protocol uses a
-routable multicast address (such as SSDP's `239.255.255.250`), very few
-residential networks actually support multicast routing.
+Most of these discovery protocols have been developed with the assumption that
+they will be used on a simple residential network with a single subnet on a
+single [layer 2](https://en.wikipedia.org/wiki/Data_link_layer) domain
+([segment](https://en.wikipedia.org/wiki/Network_segment)).  They mostly use
+traffic types
+([IPv4 broadcast](https://en.wikipedia.org/wiki/Broadcast_address#IP_networking)
+or
+[local subnetwork multicast](https://en.wikipedia.org/wiki/Multicast_address#IPv4))
+that cannot be routed between networks.  Even when a discovery protocol does use
+a routable multicast address (such as SSDP's `239.255.255.250`), multicast
+routing capability is rare in residential routers, and it can be difficult to
+configure on those devices and operating systems that do offer support.
 
-More technical users, however, often want to separate their home networks into
-multiple VLANs/subnets in order to segregate different device types, traffic,
-and trust levels, and control which networks and devices are allowed to
-communicate with one another.  Of course, this breaks these discovery
-protocols.
+As IoT and home automation devices have proliferated, and consumers have become
+more conscious of privacy and security, more and more people do want to separate
+their residential network into multiple sub-networks in order to segretate
+different device and traffic types and trust levels, and control which networks
+and devices are allowed to communicate with one another (and with external
+networks).  Of course, this breaks these discovery protocols.
 
-In fact though, most such devices work just fine as long as the discovery
-packets reach the device.  The devices do not check that the discovery packet
-came from an address on their local network; they simply send a **unicast**
-response to the discovery packet's source address, which can be routed by normal
-means.
+In fact, most such discovery protocols work just fine as long as the initial
+discovery message reaches the device or service to be discovered **somehow**.
+The "discoveree" typically does not verify that the discovery message originated
+on its local network; it simply sends a response directly to that message's
+source.  If the network has been configured to route the response, it will be
+received by the "discoverer," and communication between the two will proceed
+normally (assuming that the network has been configured to route all of the
+required traffic).
 
 FDF forwards broadcast and multicast discovery packets between different
-networks, enabling discovery protocols designed for flat networks to work
+networks, enabling discovery protocols designed for "flat" networks to work
 across multiple subnets.  (FDF does **not** concern itself with unicast
 responses.  Routing of those packets must be enabled via the normal mechanism
 used in the network.)
 
-### Multicast DNS
-
-Multicast DNS (mDNS) does not usually operate as described above.  Queries and
-responses are both normally sent via multicast (unless the query specifically
-requests a unicast response).  Queries and responses are both sent to the
-same destination &mdash; `224.0.0.251:5353` or `[ff02::fb]:5353`.  Thus, FDF
-must forward both mDNS queries and mDNS responses.
-
-Other mDNS forwarders exist, but (to my knowledge) all of them simply forward
-all mDNS traffic on a particular network interface to one or more other
-interfaces, without discriminating between queries and responses.  So using one
-of these forwarders to enable discovery of devices on an untrusted network from
-a trusted network also has the reverse effect; mDNS responders on the trusted
-network can be discovered from the untrusted network.
-
-FDF includes a [filter](#filters) (`mdns.so`) which allows for more precise
-control.
-
-* In **stateless** mode, the mDNS filter examines the header of the packets
-  that it receives and determines whether each packet is a query or an response.
-  Each instance of the filter is configured to pass either queries or responses
-  and drop other types of packets.  This enables a simple "directional" filter;
-  queries are forwarded from the trusted network to the untrusted network, and
-  responses can be forwarded the other way.
-
-  In this mode, an instance of the mDNS filter configured to pass responses
-  will forward all mDNS response packets that it receives, regardless of the
-  source of the query that triggered that response (if any).
-
-* In **stateful** mode, the filter tracks the mDNS requests that it receives
-  and the network from which it originated.  Responses that do not match a
-  request received within a configurable timeframe are dropped.  Responses that
-  do match a previous request are forwarded only to the network from which that
-  request was received.
+> **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
+> pattern described above.  mDNS queries and responses are **both** typically
+> sent via multicast.  Thus, both queries and responses must be forwared to
+> enable multicast DNS across different networks.  See
+> [`mdns-filter.md`](mdns-filter.md).
 
 ## Building
 
@@ -94,15 +78,16 @@ control.
 
 FDF has been developed and tested on Linux and GCC.  Compatibility with other
 operating systems and compilers is unknown.  (FDF does make use of several GCC
-extensions.)
+extensions, as well as the Linux-specific `epoll` API.)
 
-FDF requires 2 libraries &mdash; [JSON-C](https://github.com/json-c/json-c),
-which is commonly available in Linux distribution package repositories, and
+FDF requires three libraries &mdash; [JSON-C](https://github.com/json-c/json-c)
+and [libmnl](https://www.netfilter.org/projects/libmnl/index.html), which are
+both commonly available in Linux distribution package repositories, and
 [libSAVL](https://github.com/ipilcher/libsavl), which must be compiled and
 installed as documented
 [here](https://github.com/ipilcher/libsavl#building-and-installing-the-library).
-The development packages/files for both libraries must be installed in order to
-build FDF.
+The development packages/files for all three libraries must be installed in
+order to build FDF and its included filters.
 
 ### Compiling
 
@@ -110,8 +95,9 @@ Ensure that the required libraries and development files are installed, clone
 this repository, and change to its top-level (`fdf`) directory.  For example:
 
 ```
-$ rpm -q json-c-devel libsavl-devel
+$ rpm -q json-c-devel libmnl-devel libsavl-devel
 json-c-devel-0.15-2.fc35.x86_64
+libmnl-devel-1.0.4-14.fc35.x86_64
 libsavl-devel-0.7.1-1.fc35.x86_64
 
 $ git clone https://github.com/ipilcher/fdf.git
@@ -139,28 +125,36 @@ $ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -o fdfd *.c -lsavl -ljson-c \
 	-ldl -Wl,--dynamic-list=symlist
 ```
 
-> **NOTE:** The `-std=gnu99` option is required only with older compilers (such
-> as GCC 4.8 on CentOS 7) that do not enable C99 features by default, but it
-> does no harm on newer versions.  Similarly, `-Wcast-align` has no effect on
-> platforms such as x86 that don't differentiate between aligned and unaligned
-> memory access; it is significant, however, on platforms such as ARM that will
-> trigger a bus error when aligned memory access instructions are used with an
-> unaligned address.
-
-Build the multicast DNS filter (`mdns.so`).
+Build the included filters.
 
 ```
 $ cd filters
 
-$ gcc -std=gnu99 -O3 -Wall -Wextra -shared -fPIC -o mdns.so -I.. mdns.c
+$ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o mdns.so \
+	-I.. mdns.c -lsavl
+
+$ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o ipset.so \
+	-I.. ipset.c -lmnl
 ```
+
+> **NOTE:** The `-std=gnu99` option is required only with older compilers (such
+> as GCC 4.8 on CentOS 7) that do not enable C99 features by default, but it
+> does no harm on newer versions.
+>
+> Similarly, `-Wcast-align` has no effect on platforms such as x86 that don't
+> differentiate (at the instruction set level) between aligned and unaligned
+> memory access.  It is useful, however, on platforms such as ARM that trigger a
+> bus error when aligned memory access instructions are used with an unaligned
+> address.  (Newer versions of GCC offer a `-Wcast-align=strict` option that
+> will warn about potential alignment problems even when building for a platform
+> that is not affected.)
 
 ## Configuration
 
 FDF uses a JSON configuration file to control its operation.  This configuration
 file must contain a single JSON object (dictionary), and the top-level object
-must contain 2 or 3 members.  The `matches` and `listen` members are required,
-and the `filters` member is optional.
+must contain 2 or 3 members.  The `matches` and `listen` members are required;
+the `filters` member is optional.
 
 > **NOTE:** FDF does not perform schema validation of its configuration file.
 > As a result, additional object members at any level are silently ignored
@@ -187,10 +181,24 @@ as follows.
 
 The optional `filters` member of the configuration object specifies one or
 more dynamically loaded filter modules (shared objects).  Filter modules can
-be used to pass or drop packets, based on the packet contents.  A filter module
-can also specify a particular network interface to which a packet should be
-forwarded.  (See the note in [**Listeners**](#listeners) for a discussion of
-this feature.)
+be used to pass or drop packets based on their payload, forward a packet to a
+specific network interface (see note in [**Listeners**](#listeners)), or
+otherwise extend the functionality of the FDF daemon.  (See
+[`filter-api.md`](filter-api.md).)
+
+FDF currently includes two filter modules.
+
+* The [mDNS filter](mdns-filter.md) provides stateless or stateful filtering
+  of multicast DNS messages, based on the message types and contents.
+
+* The [IP set filter](ipset-filter.md) does not actually filter traffic.
+  Instead it adds the **source** address and port of any packet that it
+  processes to a
+  [Linux netfilter IP set](https://www.netfilter.org/projects/ipset/index.html).
+  With the correct firewall rules in place, this can enable "stateful" routing
+  of unicast responses to broadcast or multicast discovery packets; unicast
+  responses will be routed only during the period immediately after a discovery
+  packet has been forwarded.
 
 Each member of the `filters` object defines a filter instance.  Each filter
 instance must have a unique name, which is defined by its name (key value)
@@ -202,18 +210,17 @@ must be an array of JSON strings, which will be passed to the filter's
 initialization function to initialize the filter instance.  (The name of the
 filter instance and the path to the shared object are also passed.)
 
-FDF includes a [multicast DNS filter](#multicast-dns) (`mdns.so`).  The
-configuration fragment below creates 2 instances of this filter.
+The configuration fragment below creates two instances of the mDNS filter.
 
 ```
 	"filters": {
 		"mdns_query": {
 			"file": "./filters/mdns.so",
-			"args": [ "mode=stateful", "accept=queries" ]
+			"args": [ "mode=stateful", "forward=queries" ]
 		},
 		"mdns_response": {
 			"file": "./filters/mdns.so",
-			"args": [ "accept=responses" ]
+			"args": [ "forward=responses" ]
 		}
 	}
 ```
@@ -221,7 +228,7 @@ configuration fragment below creates 2 instances of this filter.
 ### Matches
 
 The (required) `matches` member of the configuration object defines
-address/port (or address/port/filter) tuples that uniquely identify types of
+address/port (or address/port/filters) tuples that uniquely identify types of
 traffic.
 
 As with filter instances, each match must have a unique name that is determined
@@ -284,7 +291,7 @@ identifies a match defined in the `matches` object, and the value of each
 member must be an array of strings that list the destination network interraces
 for traffic received on that particular listen interface/match combination.
 
-> **NOTE:** In general, any packet received by a particular network
+> **NOTE:** Generally, any packet received by a particular network
 > interface/match combination (and passed by the match's filter instances, if
 > any) will be forwarded to **all** of the destination interfaces listed for
 > that combination.  As discussed [above](#filters), however, it is possible for
@@ -292,10 +299,12 @@ for traffic received on that particular listen interface/match combination.
 > destination interfaces listed for that interface/match combination.
 
 For example, assume that FDF is running on a system with 4 network interfaces.
-`eth0` is connected to a trusted network, `eth1` is connected to an untrusted
-guest/wifi network, `eth2` is connected to an IOT network that has no Internet
-access, and `eth3` is connected to a storage network that uses jumbo frames for
-performance reasons.
+
+* `eth0` is connected to a trusted network,
+* `eth1` is connected to an untrusted guest/wifi network,
+* `eth2` is connected to an IOT network that has no Internet access, and
+* `eth3` is connected to a storage network that uses jumbo frames for
+  performance reasons.
 
 Consider the following configuration fragment, which builds on the `matches`
 example above.
@@ -355,7 +364,7 @@ configuration.  JSON-C has numerous benefits, but it does have some limitations.
 
 * The [JSON specification](https://datatracker.ietf.org/doc/html/rfc7159) does
   not specify the behavior of JSON parsers in the presence of non-unique member
-  names within an object.  JSON-C (and all other parsers of which I am aware)
+  names within an object.  JSON-C (and most other parsers of which I am aware)
   deal with non-unique member names by simply ignoring all but one of the
   members.  As a result, FDF has no way to detect non-unique member names.
 
@@ -376,14 +385,15 @@ addressed by the development of a suitable
 
 ### Runtime Requirements
 
-Running `fdfd` requires that JSON-C and libSAVL (but not necessarily their
-development files) are installed.  It also has several network-related
-requirements.
+Running `fdfd` requires that JSON-C, libSAVL, and (if using the IP set filter)
+libmnl (but not necessarily their development files) are installed.  It also has
+several network-related requirements.
 
 * Interfaces on which `fdfd` will listen for traffic must have at least one IPv4
   address configured.  If no such address is configured, `fdfd` will not
   issue any error message, because it does not make use of the IP address, but
-  it will not actually receive any traffic from that interface.
+  it will not actually receive any traffic from that interface.  (This appears
+  to be a Linux kernel behavior.)
 
 * The host firewall (`iptables`, `nftables`, `firewalld`, etc.) of the system on
   which `fdfd` is running must be configured to allow the daemon's traffic.
@@ -406,6 +416,10 @@ requirements.
 > [raw socket](https://man7.org/linux/man-pages/man7/raw.7.html).  In order to
 > create a raw socket, `fdfd` must be run as the `root` user or with the
 > [`CAP_NET_RAW` capability](https://man7.org/linux/man-pages/man7/capabilities.7.html).
+>
+> When using the IP set filter, and running as a non-`root` user, `fdfd` must
+> be run with the `CAP_NET_ADMIN` capability, which is required to manipulate
+> IP sets.
 
 ### Running `fdfd`
 
