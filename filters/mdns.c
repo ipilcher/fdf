@@ -19,8 +19,11 @@
 #include <syslog.h>
 #include <time.h>
 
-#define MDNS_ACCEPT_QUERIES	0
-#define MDNS_ACCEPT_RESPONSES	1
+#define MDNS_FLAG_FWD_RESP	1
+#define MDNS_FLAG_CHAINED	2
+
+#define MDNS_FLAG_FWD_SET	(MDNS_FLAG_FWD_RESP << 16)
+#define MDNS_FLAG_CHAINED_SET	(MDNS_FLAG_CHAINED << 16)
 
 #define MDNS_MODE_STATELESS	0
 #define MDNS_MODE_STATEFUL	1
@@ -29,6 +32,9 @@
 #define MDNS_CLASS_COUNT	4
 #define MDNS_CLASS_IN		1
 #define MDNS_TYPE_ANY		255
+
+#define MDNS_QCLASS_QU		0x8000  /* High bit of qclass is QU */
+#define MDNS_CLASS_CF		0x8000  /* High bit of class is cache flush */
 
 union mdns_pkt {
 	struct {
@@ -160,14 +166,13 @@ static void mdns_add_question(struct mdns_question *question,
 {
 	struct savl_node *existing_node;
 	struct mdns_question *existing;
-	union savl_key key;
 
 	question->netif = netif;
 	question->expires = now + mdns_query_life;
 
-	key.p = &question->c;
 	existing_node = savl_force_add(&mdns_questions, mdns_question_cmp,
-				       key, &question->node);
+				       (union savl_key){ .p = &question->c },
+				       &question->node);
 
 	if (existing_node != NULL) {
 
@@ -294,7 +299,7 @@ static const char *mdns_type_name(uint16_t t)
 
 	const struct mdns_type *type;
 
-	t &= 0x7fff;  /* ignore QU bit */
+	t &= ~ MDNS_QCLASS_QU;  /* ignore QU bit */
 
 	type = bsearch((void *)(intptr_t)t, types,
 		       sizeof types / sizeof types[0],
@@ -313,7 +318,7 @@ static const char *mdns_class_name(uint16_t class)
 
 	static char buf[sizeof "(65535)"];
 
-	class &= 0x7fff;  /* ignore cache-flush bit */
+	class &= ~MDNS_CLASS_CF;  /* ignore cache flush bit */
 
 	if (class >= 1 && class <= MDNS_CLASS_COUNT)
 		return class_names[class - 1];
@@ -530,15 +535,21 @@ static struct mdns_rr *mdns_parse_rr(const uintptr_t handle,
 	return rr;
 }
 
-static _Bool mdns_parse_questions(const uintptr_t handle,
-				  const union mdns_pkt *pkt,
-				  const size_t pkt_size,
-				  const uintptr_t in_netif)
+/*
+ * Return values:
+ *	-1: error
+ *	 0: success
+ *	 1: success (unicast response requested)
+ */
+static int mdns_parse_questions(const uintptr_t handle,
+				const union mdns_pkt *pkt,
+				const size_t pkt_size, const uintptr_t in_netif)
 {
 	unsigned int offset;
 	uint16_t qdcount;
 	struct mdns_question *question;
 	struct timespec now;
+	_Bool qu;
 
 	if (clock_gettime(CLOCK_BOOTTIME, &now) < 0) {
 		fdf_filter_log(handle, LOG_CRIT,
@@ -549,16 +560,17 @@ static _Bool mdns_parse_questions(const uintptr_t handle,
 	mdns_remove_old(handle, now.tv_sec);
 	qdcount = ntohs(pkt->qdcount);
 	offset = MDNS_DNS_HDR_SIZE;
+	qu = 0;
 
 	while (qdcount-- > 0) {
 
 		question = mdns_parse_question(handle, pkt, pkt_size, offset);
 		if (question == NULL)
-			return 0;
+			return -1;
 
 		offset += question->c.size;
 
-		if ((question->c.qclass & 0x7fff) != MDNS_CLASS_IN) {
+		if ((question->c.qclass & ~MDNS_QCLASS_QU) != MDNS_CLASS_IN) {
 			fdf_filter_log(handle, LOG_DEBUG,
 				       "Ignoring question with class %s",
 				       mdns_class_name(question->c.qclass));
@@ -566,14 +578,20 @@ static _Bool mdns_parse_questions(const uintptr_t handle,
 			continue;
 		}
 
-		fdf_filter_log(handle, LOG_DEBUG, "\tquestion: IN %10s\t%s",
+		if (question->c.qclass & MDNS_QCLASS_QU)
+			qu = 1;
+
+		fdf_filter_log(handle, LOG_DEBUG,
+			       "\tquestion: IN %10s\t%s (%s)",
 			       mdns_type_name(question->c.qtype),
-			       question->c.qname);
+			       question->c.qname,
+			       (question->c.qclass & MDNS_QCLASS_QU)
+								? "QU" : "QM");
 
 		mdns_add_question(question, in_netif, now.tv_sec);
 	}
 
-	return 1;
+	return qu;
 }
 
 static _Bool mdns_parse_answers(const uintptr_t handle,
@@ -585,7 +603,6 @@ static _Bool mdns_parse_answers(const uintptr_t handle,
 	uint16_t ancount;
 	struct mdns_rr *answer;
 	struct timespec now;
-	union savl_key key;
 	const struct savl_node *node;
 	const struct mdns_question *question;
 
@@ -607,7 +624,7 @@ static _Bool mdns_parse_answers(const uintptr_t handle,
 
 		offset += answer->c.size;
 
-		if ((answer->c.class & 0x7fff) != MDNS_CLASS_IN) {
+		if ((answer->c.class & ~MDNS_CLASS_CF) != MDNS_CLASS_IN) {
 			fdf_filter_log(handle, LOG_DEBUG,
 				       "Ignoring answer with class %s",
 				       mdns_class_name(answer->c.class));
@@ -618,12 +635,13 @@ static _Bool mdns_parse_answers(const uintptr_t handle,
 		fdf_filter_log(handle, LOG_DEBUG, "\tanswer: IN %10s\t%s",
 			       mdns_type_name(answer->c.type), answer->c.name);
 
-		key.p = &answer->c;
-		node = savl_get(mdns_questions, mdns_question_cmp, key);
+		node = savl_get(mdns_questions, mdns_question_cmp,
+				(union savl_key){ .p = &answer->c });
 
 		if (node == NULL) {
 			answer->c.type = MDNS_TYPE_ANY;
-			node = savl_get(mdns_questions, mdns_question_cmp, key);
+			node = savl_get(mdns_questions, mdns_question_cmp,
+					(union savl_key){ .p = &answer->c });
 		}
 
 		if (node == NULL) {
@@ -647,7 +665,7 @@ static _Bool mdns_parse_answers(const uintptr_t handle,
 	return 1;
 }
 
-static uint8_t mdns_match_query(const uintptr_t handle,
+static uint8_t mdns_match_query(const uintptr_t handle, const uintptr_t flags,
 				const struct sockaddr_storage *const src,
 				const union mdns_pkt *const pkt,
 				const size_t pkt_size, const uintptr_t in_netif)
@@ -665,10 +683,18 @@ static uint8_t mdns_match_query(const uintptr_t handle,
 	if (mdns_mode == MDNS_MODE_STATELESS)
 		return FDF_FILTER_PASS;
 
-	if (mdns_parse_questions(handle, pkt, pkt_size, in_netif) == 0)
-		return FDF_FILTER_DROP_NOW;
+	switch (mdns_parse_questions(handle, pkt, pkt_size, in_netif)) {
 
-	return FDF_FILTER_PASS;
+		case -1:	return FDF_FILTER_DROP_NOW;
+
+		case  1:	if (flags & MDNS_FLAG_CHAINED)
+					return FDF_FILTER_PASS_NOW;
+
+		/* fallthrough */
+		case  0:	return FDF_FILTER_PASS;
+
+		default:	abort();  /* Suppress compiler warning */
+	}
 }
 
 static uint8_t mdns_match_response(const uintptr_t handle,
@@ -707,8 +733,8 @@ static uint8_t mdns_match(const uintptr_t handle,
 			  uintptr_t *const fwd_netif_out)
 {
 	char buf[FDF_FILTER_SA6_LEN];
-	union fdf_filter_data accept;
 	const union mdns_pkt *pkt;
+	uintptr_t flags;
 
 	if (pkt_size < sizeof(union mdns_pkt)) {
 		fdf_filter_sock_addr(handle, src, buf, sizeof buf);
@@ -718,19 +744,10 @@ static uint8_t mdns_match(const uintptr_t handle,
 	}
 
 	pkt = FDF_FILTER_PKT_AS(union mdns_pkt, raw_pkt);
-	accept = fdf_filter_get_data(handle);
+	flags = fdf_filter_get_data(handle).u;
 
-	if (accept.b == MDNS_ACCEPT_QUERIES) {
+	if (flags & MDNS_FLAG_FWD_RESP) {
 
-		if (mdns_is_answer(pkt)) {
-			fdf_filter_log(handle, LOG_DEBUG,
-				       "  Dropping answer packet");
-			return FDF_FILTER_DROP;
-		}
-
-		return mdns_match_query(handle, src, pkt, pkt_size, in_netif);
-	}
-	else {
 		if (mdns_is_query(pkt)) {
 			fdf_filter_log(handle, LOG_DEBUG,
 				       "  Dropping query packet");
@@ -739,6 +756,16 @@ static uint8_t mdns_match(const uintptr_t handle,
 
 		return mdns_match_response(handle, src, pkt,
 					   pkt_size, fwd_netif_out);
+	}
+	else {
+		if (mdns_is_answer(pkt)) {
+			fdf_filter_log(handle, LOG_DEBUG,
+				       "  Dropping answer packet");
+			return FDF_FILTER_DROP;
+		}
+
+		return mdns_match_query(handle, flags, src,
+					pkt, pkt_size, in_netif);
 	}
 }
 
@@ -804,50 +831,77 @@ static _Bool mdns_parse_qlife(const uintptr_t handle, const char *const arg)
 	return 1;
 }
 
-static _Bool mdns_parse_accept(const uintptr_t handle,
-			       const char *restrict const arg,
-			       _Bool *const accept_out, const _Bool already_set)
+static _Bool mdns_parse_fwd(const uintptr_t handle,
+			    const char *restrict const arg,
+			    uintptr_t *const flags)
 {
-	if (already_set) {
+	if (*flags & MDNS_FLAG_FWD_SET) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "mDNS filter instance accept type already set");
+			       "Instance forward type already set");
 		return 1;
 	}
 
 	if (strcmp(arg, "queries") == 0) {
-		*accept_out = MDNS_ACCEPT_QUERIES;
+		*flags |= MDNS_FLAG_FWD_SET;  /* Flags initialized to 0 */
 		fdf_filter_log(handle, LOG_DEBUG,
-			"mDNS filter instance accept type set to QUERIES");
+			       "Instance forward type set to QUERIES");
 		return 0;
 	}
 
 	if (strcmp(arg, "responses") == 0) {
-		*accept_out = MDNS_ACCEPT_RESPONSES;
+		*flags |= (MDNS_FLAG_FWD_RESP | MDNS_FLAG_FWD_SET);
 		fdf_filter_log(handle, LOG_DEBUG,
-			"mDNS filter instance accept type set to RESPONSES");
+			       "Instance forward type set to RESPONSES");
 		return 0;
 	}
 
-	fdf_filter_log(handle, LOG_ERR,
-		       "Unknown mDNS filter accept type: %s", arg);
+	fdf_filter_log(handle, LOG_ERR, "Unknown forward type: %s", arg);
+	return 1;
+}
+
+static _Bool mdns_parse_chained(const uintptr_t handle,
+				const char *restrict const arg,
+				uintptr_t *const flags)
+{
+	if (*flags & MDNS_FLAG_CHAINED_SET) {
+		fdf_filter_log(handle, LOG_ERR,
+			       "Instance chained mode already set");
+		return 1;
+	}
+
+	if (strcasecmp(arg, "yes") == 0 || strcasecmp(arg, "true") == 0) {
+		*flags |= (MDNS_FLAG_CHAINED | MDNS_FLAG_CHAINED_SET);
+		fdf_filter_log(handle, LOG_DEBUG,
+			       "Instanced set to CHAINED mode");
+		return 0;
+	}
+
+	if (strcasecmp(arg, "no") == 0 || strcasecmp(arg, "false") == 0) {
+		*flags |= MDNS_FLAG_CHAINED_SET;  /* Flags initialized to 0 */
+		fdf_filter_log(handle, LOG_ERR,
+			       "Instance set to UNCHAINED mode");
+		return 0;
+	}
+
+	fdf_filter_log(handle, LOG_ERR, "Unknown chained mode: %s", arg);
 	return 1;
 }
 
 static _Bool mdns_init(const uintptr_t handle,
 		       const int argc, const char *const *const argv)
 {
-	union fdf_filter_data accept;
-	_Bool err, accept_set;
+	uintptr_t flags;
+	_Bool err;
 	int i;
 
-	if (argc < 3 || argc > 5) {
+	if (argc < 3 || argc > 6) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "%s requires between 1 and 3 arguments",
+			       "%s requires between 1 and 4 arguments",
 			       argv[1]);
 		return 0;
 	}
 
-	accept_set = 0;
+	flags = 0;
 
 	for (i = 2; i < argc; ++i) {
 
@@ -859,10 +913,11 @@ static _Bool mdns_init(const uintptr_t handle,
 		else if (strncmp(argv[i], "query_life=", 11) == 0) {
 			err = mdns_parse_qlife(handle, argv[i] + 11);
 		}
-		else if (strncmp(argv[i], "accept=", 7) == 0) {
-			err = mdns_parse_accept(handle, argv[i] + 7,
-						&accept.b, accept_set);
-			accept_set = 1;
+		else if (strncmp(argv[i], "forward=", 8) == 0) {
+			err = mdns_parse_fwd(handle, argv[i] + 8, &flags);
+		}
+		else if (strncmp(argv[i], "chained=", 8) == 0) {
+			err = mdns_parse_chained(handle, argv[i] + 8, &flags);
 		}
 		else {
 			fdf_filter_log(handle, LOG_ERR,
@@ -874,15 +929,13 @@ static _Bool mdns_init(const uintptr_t handle,
 			return 0;
 	}
 
-	if (!accept_set) {
+	if (!(flags & MDNS_FLAG_FWD_SET)) {
 		fdf_filter_log(handle, LOG_ERR,
-			       "accept={queries|responses} argument required");
+			       "forward={queries|responses} argument required");
 		return 0;
 	}
 
-	fdf_filter_set_data(handle, accept);
-
-	fdf_filter_log(handle, LOG_DEBUG, "Initialization successful");
+	fdf_filter_set_data(handle, (union fdf_filter_data){ .u = flags });
 
 	return 1;
 }
