@@ -89,6 +89,138 @@ Each of them can (or must) be specified for each instance of the mDNS filter.
   > filters.
 
 * `ipset={yes|no|true|false}` (default `no`) &mdash; Determines whether the
-  mDNS filter operates in "ipset mode," which better supports "chaining" the
-  mDNS and [IP set](ipset-filter.md) filters.  See
-  [`mdns-ipset.md`](mdns-ipset.md).
+  mDNS filter operates in "[IP set mode](#ip-set-mode)," which better supports
+  "chaining" the mDNS and [IP set](ipset-filter.md) filters.
+
+### IP Set Mode
+
+The [IP set filter](ipset-filter.md) can be used to dynamically enable routing
+of unicast responses to broadcast and multicast discovery packets.  As discussed
+[above](#protocol), this is not usually needed for multicast DNS traffic,
+because mDNS responses are normally sent via multicast.  As noted, however, a
+multicast DNS query may request a unicast response by setting its `QU` bit.  In
+this case, there is a requirement to route a unicast response packet.
+
+Together, the mDNS and IP set filters support this scenario through
+[filter chaining](filter-api.md#filter-chaining).  Returning to the example
+of a trusted network connected to `eth0` and an untrusted network on `eth1`,
+an FDF configuration might look like this.
+
+```
+{
+	"filters": {
+		"mdns_query": {
+			"file": "./filters/mdns.so",
+			"args": [ "mode=stateful", "forward=queries" ]
+		},
+		"mdns_response": {
+			"file": "./filters/mdns.so",
+			"args": [ "forward=responses" ]
+		}
+	},
+	"matches": {
+		"mdns_query": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_query" ]
+		},
+		"mdns_response": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_response" ]
+		}
+	},
+	"listen": {
+		"eth0": {
+			"mdns_query": [ "eth1" ]
+		},
+		"eth1": {
+			"mdns_response": [ "eth0 ]
+		}
+	}
+}
+```
+
+This configuration forwards (multicast) mDNS queries from `eth0` to `eth1`, and
+it forwards multicast mDNS responses from `eth1` to `eth0`.  (It uses stateful
+mode, so only responses to queries that originated on the trusted network are
+forwarded to that network.)
+
+This configuration does not do anything to enable routing of any **unicast**
+mDNS responses from the untrusted network to the trusted network.  That requires
+adding the IP set filter.
+
+```
+{
+	"filters": {
+		︙
+		"ipset_mdns": {
+			"file": "./filters/ipset.so",
+			"args": [ "set_name=MDNS_CLIENTS" ]
+		}
+	},
+	"matches": {
+		"mdns_query": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_query", "ipset_mdns" ]
+		},
+		︙
+	},
+	"listen": {
+		︙
+}
+```
+
+Consider a UDP packet addressed to `224.0.0.251:5353` to that is received on
+`eth0` (the trusted network interface).  Leaving aside error conditions, there
+are three possibilities:
+
+1. If the packet containes an mDNS query with the `QU` bit set, the
+   `mdns_query` filter instance will return `FDF_FILTER_PASS`.  The packet will
+   then be passed to the `ipset_mdns` filter instance which will add the
+   packet's source IP address and port to the `MDNS_CLIENTS` IP set.  The
+   `ipset_mdns` filter instance will then return `FDF_FILTER_PASS` (because it
+   always does), and FDF will forward the packet to the untrusted network.
+
+   If the firewall is configured correctly, any unicast responses received in
+   the next 30 seconds (the IP set filter's default timeout) will be routed to
+   the address from which the query originated.  This is the desired behavior.
+
+2. If the packet contains an mDNS query that does not have the `QU` bit set, the
+   result will be identical.  The `mdns_query` filter instance will return
+   `FDF_FILTER_PASS` (because it is a query), then the `ipset_mdns` filter
+   instance will will add the query's source address and port to the
+   `MDNS_CLIENTS` IP set (because that's what it does) and return
+   `FDF_FILTER_PASS`.  FDF will forward the packet to the untrusted network.
+
+   This is the desired result, except that the source address of the query has
+   been incorrectly added to the `MDNS_CLIENTS` IP set, as there is no reason to
+   expect any unicast responses to the query.
+
+3. If the packet does not contain an mDNS query (usually because it contains a
+   multicast response), the `mdns_query` filter instance will properly return
+   `FDF_FILTER_DROP`.  However, the packet will still be passed to the
+   `ipset_mdns` filter instance, which will add its source address to the
+   `MDNS_CLIENTS` IP set and return `FDF_FILTER_PASS` (because it does not have
+   any visibility into the results of previous filters in the chain).
+
+   Because the last filter in the chain returned `FDF_FILTER_PASS`, FDF will
+   forward the packet to the untrusted network, which is definitely not the
+   desired result.
+
+The mDNS filter's IP set mode changes the result that the filter returns in
+scenarios **2** and **3**.
+
+* If the packet contains an mDNS query that does not have the `QU` bit set
+  (scenario **2**), the `mdns_query` filter instance will return
+  `FDF_FILTER_PASS_NOW`.  This will cause the FDF daemon to immediately stop
+  filter processing and forward the packet to the untrusted network.  The
+  packet will not be passed to the `ipset_mdns` filter instance, so its source
+  address will not be added to the `MDNS_CLIENTS` IP set.
+
+* If the packet does not contain an mDNS query (scenario **3**), the
+  `mdns_query` filter instance will return `FDF_FILTER_DROP_NOW`.  The daemon
+  will immediately stop filter processing and drop the packet.  The packet will
+  not be passed to the `ipset_mdns` filter instance, so its source address will
+  not be added to the `MDNS_CLIENTS` IP set.
