@@ -9,6 +9,7 @@
 * [**Configuration**](#configuration)
   * [Filters](#filters)
   * [Matches](#matches)
+    * [Filter Chaining](#filter-chaining)
   * [Listeners](#listeners)
   * [Validation](#validation)
 * [**Running FDF**](#running-fdf)
@@ -210,17 +211,22 @@ must be an array of JSON strings, which will be passed to the filter's
 initialization function to initialize the filter instance.  (The name of the
 filter instance and the path to the shared object are also passed.)
 
-The configuration fragment below creates two instances of the mDNS filter.
+The configuration fragment below creates two instances of the mDNS filter and
+one instance of the IP set filter.
 
 ```
 	"filters": {
 		"mdns_query": {
 			"file": "./filters/mdns.so",
-			"args": [ "mode=stateful", "forward=queries" ]
+			"args": [ "mode=stateful", "forward=queries", "ipset=yes" ]
 		},
 		"mdns_response": {
 			"file": "./filters/mdns.so",
 			"args": [ "forward=responses" ]
+		},
+		"ipset_mdns": {
+			"file": "./filters/ipset.so",
+			"args": [ "set_name=MDNS_CLIENTS" ]
 		}
 	}
 ```
@@ -249,7 +255,7 @@ If present, `filters` must be an array of JSON strings, each of which is the
 name of a filter instance defined in the `filters` object.  For each packet
 received on the match's specified address and port, the filter instances will be
 called in the order listed (unless a filter instance returns a value that
-prevents subsequent filters from being called).
+prevents subsequent filters from being called); see [below](#filter-chaining).
 
 The configuration fragment below defines matches for several different types of
 traffic, using the filter instances shown above.
@@ -259,7 +265,7 @@ traffic, using the filter instances shown above.
 		"mdns_query": {
 			"addr": "224.0.0.251",
 			"port": 5353,
-			"filters": [ "mdns_query" ]
+			"filters": [ "mdns_query", "ipset_mdns" ]
 		},
 		"mdns_response": {
 			"addr": "224.0.0.251",
@@ -276,6 +282,27 @@ traffic, using the filter instances shown above.
 		}
 	}
 ```
+
+#### Filter Chaining
+
+The `mdns_query` match above is defined with multiple filter instances, a
+configuration called a filter chain.  When a packet is received by a listener
+that uses this match, the packet will be passed to each filter instance in the
+chain sequentially, unless a filter instance returns a special result value that
+stops the FDF daemon from passing the packet to subsequent instances in the
+chain.  In this configuration, the packet will first be passed to the
+`mdns_query` filter instance.  Depending on the value returned by `mdns_query`,
+the packet may then be passed to the `ipset_mdns` filter instance.
+
+The ultimate fate of the packet (forwarded or dropped) is determined by the
+exact values returned by the filter instances in the chain.  See
+[Match Function](doc/filter-api.md#match-function) for more information.
+
+> **NOTE:** It is not usually possible to arbitrarily chain filter modules.  The
+> modules being chained together must be designed for that use.  For example,
+> `mdns_query` filter instance is [defined](#filters) with `ipset=yes`.  This
+> causes the mDNS filter to behave in a way that is compatible with this use.
+> (See [IP Set Mode](doc/mdns-filter.md#ip-set-mode).)
 
 ### Listeners
 
