@@ -106,7 +106,7 @@ Together, the mDNS and IP set filters support this scenario through
 of a trusted network connected to `eth0` and an untrusted network on `eth1`,
 an FDF configuration might look like this.
 
-```
+```json
 {
 	"filters": {
 		"mdns_query": {
@@ -135,7 +135,7 @@ an FDF configuration might look like this.
 			"mdns_query": [ "eth1" ]
 		},
 		"eth1": {
-			"mdns_response": [ "eth0 ]
+			"mdns_response": [ "eth0" ]
 		}
 	}
 }
@@ -146,14 +146,21 @@ it forwards multicast mDNS responses from `eth1` to `eth0`.  (It uses stateful
 mode, so only responses to queries that originated on the trusted network are
 forwarded to that network.)
 
-This configuration does not do anything to enable routing of any **unicast**
-mDNS responses from the untrusted network to the trusted network.  That requires
+This configuration does not do anything to enable routing of **unicast** mDNS
+responses from the untrusted network to the trusted network.  That requires
 adding the IP set filter.
 
-```
+```json
 {
 	"filters": {
-		︙
+		"mdns_query": {
+			"file": "./filters/mdns.so",
+			"args": [ "mode=stateful", "forward=queries" ]
+		},
+		"mdns_response": {
+			"file": "./filters/mdns.so",
+			"args": [ "forward=responses" ]
+		},
 		"ipset_mdns": {
 			"file": "./filters/ipset.so",
 			"args": [ "set_name=MDNS_CLIENTS" ]
@@ -165,10 +172,20 @@ adding the IP set filter.
 			"port": 5353,
 			"filters": [ "mdns_query", "ipset_mdns" ]
 		},
-		︙
+		"mdns_response": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_response" ]
+		}
 	},
 	"listen": {
-		︙
+		"eth0": {
+			"mdns_query": [ "eth1" ]
+		},
+		"eth1": {
+			"mdns_response": [ "eth0" ]
+		}
+	}
 }
 ```
 
@@ -224,3 +241,44 @@ scenarios **2** and **3**.
   will immediately stop filter processing and drop the packet.  The packet will
   not be passed to the `ipset_mdns` filter instance, so its source address will
   not be added to the `MDNS_CLIENTS` IP set.
+
+The complete correct configuration is:
+
+```json
+{
+	"filters": {
+		"mdns_query": {
+			"file": "./filters/mdns.so",
+			"args": [ "mode=stateful", "forward=queries", "ipset=yes" ]
+		},
+		"mdns_response": {
+			"file": "./filters/mdns.so",
+			"args": [ "forward=responses" ]
+		},
+		"ipset_mdns": {
+			"file": "./filters/ipset.so",
+			"args": [ "set_name=MDNS_CLIENTS" ]
+		}
+	},
+	"matches": {
+		"mdns_query": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_query", "ipset_mdns" ]
+		},
+		"mdns_response": {
+			"addr": "224.0.0.251",
+			"port": 5353,
+			"filters": [ "mdns_response" ]
+		}
+	},
+	"listen": {
+		"eth0": {
+			"mdns_query": [ "eth1" ]
+		},
+		"eth1": {
+			"mdns_response": [ "eth0" ]
+		}
+	}
+}
+```
