@@ -149,7 +149,7 @@ OPTIONS = hashsize 64 timeout 0
 Copy the unit file to `/etc/systemd/system/` and make `systemd` aware of it.
 
 ```
-# cp ipset@.service /etc/systemd/system/
+# cp systemd/ipset@.service /etc/systemd/system/
 
 # systemctl daemon-reload
 ```
