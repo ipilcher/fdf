@@ -2,6 +2,13 @@
 
 &copy; 2022 Ian Pilcher <<arequipeno@gmail.com>>
 
+* [**Introduction**](#introduction)
+* [**IP Sets**](#ip-sets)
+  * [Creating a Set](#creating-a-set)
+  * [Persisting a Set](#persisting-a-set)
+  * [Using a Set](#using-a-set)
+* [**Using the Filter**](#using-the-filter)
+
 ## Introduction
 
 Most network discovery protocols feature an initial discovery message, sent via
@@ -208,7 +215,7 @@ ports to the IP set.
 
 Create an instance of the filter.  For example:
 
-```
+```json
 	"filters": {
 		"ipset_hdhr": {
 			"file": "./filters/ipset.so",
@@ -222,7 +229,7 @@ The `set_name` parameter is required.  `protocol` (default UDP) and `timeout`
 
 Add it to the match.
 
-```
+```json
 	"matches": {
 		"hdhomerun": {
 			"addr": "255.255.255.255",
