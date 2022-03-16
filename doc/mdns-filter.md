@@ -102,7 +102,7 @@ multicast DNS query may request a unicast response by setting its `QU` bit.  In
 this case, there is a requirement to route a unicast response packet.
 
 Together, the mDNS and IP set filters support this scenario through
-[filter chaining](filter-api.md#filter-chaining).  Returning to the example
+[filter chaining](../README.md#filter-chaining).  Returning to the example
 of a trusted network connected to `eth0` and an untrusted network on `eth1`,
 an FDF configuration might look like this.
 
