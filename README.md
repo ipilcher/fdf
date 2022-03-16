@@ -64,13 +64,13 @@ FDF forwards broadcast and multicast discovery packets between
 networks, enabling discovery protocols designed for "flat" networks to work
 across multiple subnets.  FDF does **not** normally concern itself with unicast
 responses.  Routing of those packets must be enabled via the normal mechanism
-used in the network.  (But see the [IP set filter](ipset-filter.md).)
+used in the network.  (But see the [*IP set filter*](doc/ipset-filter.md).)
 
 > **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
 > pattern described above.  mDNS queries and responses are **both** typically
 > sent via multicast.  Thus, both queries and responses must be forwared to
-> enable multicast DNS across different networks.  See
-> [`mdns-filter.md`](mdns-filter.md).
+> enable multicast DNS across different networks.  See the
+> [*Multicast DNS filter*](doc/mdns-filter.md).
 
 ## Building
 
@@ -183,15 +183,15 @@ The optional `filters` member of the configuration object specifies one or
 more dynamically loaded filter modules (shared objects).  Filter modules can
 be used to pass or drop packets based on their payload, forward a packet to a
 specific network interface (see note in [**Listeners**](#listeners)), or
-otherwise extend the functionality of the FDF daemon.  (See
-[`filter-api.md`](filter-api.md).)
+otherwise extend the functionality of the FDF daemon.  (See the
+[*FDF Filter API*](doc/filter-api.md).)
 
 FDF currently includes two filter modules.
 
-* The [mDNS filter](mdns-filter.md) provides stateless or stateful filtering
+* The [mDNS filter](doc/mdns-filter.md) provides stateless or stateful filtering
   of multicast DNS messages, based on the message types and contents.
 
-* The [IP set filter](ipset-filter.md) does not actually filter traffic.
+* The [IP set filter](doc/ipset-filter.md) does not actually filter traffic.
   Instead it adds the **source** address and port of any packet that it
   processes to a
   [Linux netfilter IP set](https://www.netfilter.org/projects/ipset/index.html).
