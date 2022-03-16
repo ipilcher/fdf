@@ -164,16 +164,16 @@ the `filters` member is optional.
 The skeleton of a configuration file that includes a `filters` member appears
 as follows.
 
-```
+```json
 {
 	"filters": {
-		︙
+
 	},
 	"matches": {
-		︙
+
 	},
 	"listen": {
-		︙
+
 	}
 }
 ```
@@ -214,7 +214,7 @@ filter instance and the path to the shared object are also passed.)
 The configuration fragment below creates two instances of the mDNS filter and
 one instance of the IP set filter.
 
-```
+```json
 	"filters": {
 		"mdns_query": {
 			"file": "./filters/mdns.so",
@@ -260,7 +260,7 @@ prevents subsequent filters from being called); see [below](#filter-chaining).
 The configuration fragment below defines matches for several different types of
 traffic, using the filter instances shown above.
 
-```
+```json
 	"matches": {
 		"mdns_query": {
 			"addr": "224.0.0.251",
@@ -336,7 +336,7 @@ For example, assume that FDF is running on a system with 4 network interfaces.
 Consider the following configuration fragment, which builds on the `matches`
 example above.
 
-```
+```json
 	"listen": {
 		"eth0": {
 			"mdns_query": [ "eth1" ],
