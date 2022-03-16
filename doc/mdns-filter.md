@@ -2,6 +2,12 @@
 
 &copy; 2022 Ian Pilcher <<arequipeno@gmail.com>>
 
+* [**Protocol**](#protocol)
+* [**Forwarding**](#forwarding)
+* [**Filter**](#filter)
+* [**Configuration**](#configuration)
+  * [IP Set Mode](#ip-set-mode)
+
 ## Protocol
 
 Multicast DNS (mDNS) uses a different communication pattern than other
