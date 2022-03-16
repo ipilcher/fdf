@@ -11,7 +11,7 @@ network to a trusted network, in response to a discovery message that was
 **forwarded** from the trusted network to the untrusted network.  A stateful
 firewall will normally drop (or reject) such response packets, because their
 relationship to the initial discovery message isn't understood by the firewall.
-(After all, the firewall didn't route the discovery packet; some application
+(After all, the firewall didn't route the discovery packet.  Some application
 sent **something** with a raw socket, but it wasn't even addressed to the
 address from which the response packets are coming.)
 
