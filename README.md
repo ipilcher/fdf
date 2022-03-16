@@ -109,7 +109,7 @@ remote: Total 27 (delta 5), reused 23 (delta 3), pack-reused 0
 Receiving objects: 100% (27/27), 32.43 KiB | 2.16 MiB/s, done.
 Resolving deltas: 100% (5/5), done.
 
-$ cd fdf
+$ cd fdf/src
 ```
 
 Ensure that the filter API version in `fdf-filter.h` is up to date.
@@ -464,7 +464,7 @@ following steps as the `root` user.
 * Create a directory for filter plugins &mdash; `/usr/local/lib/fdf-filters` or
   `/usr/local/lib64/fdf-filters`.
 
-* Copy the multicast DNS filter to the filter plugin directory.
+* Copy the included filters to the filter plugin directory.
 
 * Copy the configuration file to `/etc/fdf-config.json`.
 
@@ -475,16 +475,16 @@ following steps as the `root` user.
 
 * Check for errors (`systemctl status fdfd`).
 
-For example:
+For example (from the top-level directory of the repository):
 
 ```
-# cp fdfd.service /etc/systemd/sytem/
+# cp systemd/fdfd.service /etc/systemd/sytem/
 
-# cp fdfd /usr/local/bin/
+# cp src/fdfd /usr/local/bin/
 
 # mkdir /usr/local/lib64/fdf-filters
 
-# cp mdns.so /usr/local/lib64/fdf-filters/
+# cp src/filters/*.so /usr/local/lib64/fdf-filters/
 
 # cp fdf-config.json /etc/
 
