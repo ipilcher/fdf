@@ -1,0 +1,14 @@
+[Unit]
+Description=IP set - %I
+Before=iptables.service ip6tables.service
+
+[Service]
+Type=oneshot
+PrivateTmp=true
+EnvironmentFile=/etc/sysconfig/ipset-%I
+ExecStart=/usr/sbin/ipset -exist create %I $TYPE family $FAMILY "$OPTIONS"
+ExecStop=/usr/sbin/ipset destroy %I
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

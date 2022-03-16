@@ -45,7 +45,7 @@ routing capability is rare in residential routers, and it can be difficult to
 configure on those devices and operating systems that do offer support.
 
 As IoT and home automation devices have proliferated, and consumers have become
-more conscious of privacy and security, more and more people do want to separate
+more conscious of privacy and security, more and more people want to separate
 their residential network into multiple sub-networks in order to segretate
 different device and traffic types and trust levels, and control which networks
 and devices are allowed to communicate with one another (and with external
@@ -60,11 +60,11 @@ received by the "discoverer," and communication between the two will proceed
 normally (assuming that the network has been configured to route all of the
 required traffic).
 
-FDF forwards broadcast and multicast discovery packets between different
+FDF forwards broadcast and multicast discovery packets between
 networks, enabling discovery protocols designed for "flat" networks to work
-across multiple subnets.  (FDF does **not** concern itself with unicast
+across multiple subnets.  FDF does **not** normally concern itself with unicast
 responses.  Routing of those packets must be enabled via the normal mechanism
-used in the network.)
+used in the network.  (But see the [IP set filter](ipset-filter.md).)
 
 > **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
 > pattern described above.  mDNS queries and responses are **both** typically
