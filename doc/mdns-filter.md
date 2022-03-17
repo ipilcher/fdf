@@ -248,6 +248,14 @@ scenarios **2** and **3**.
   not be passed to the `ipset_mdns` filter instance, so its source address will
   not be added to the `MDNS_CLIENTS` IP set.
 
+> **NOTE:** IP set mode does not work correctly when the mDNS filter is
+> operating in **stateless** mode.  It will not identify queries that have a
+> `QU` bit set, because the questions section of an mDNS query is not parsed
+> in that mode.  As a result, a stateless mDNS filter instance with
+> `forward=queries` and `ipset=yet` will always return `FDF_FILTER_PASS_NOW` or
+> `FDF_FILTER_DROP_NOW`.  (It will never return `FDF_FILTER_PASS`, even if it
+> processes an mDNS query with a `QU` bit set.)
+
 The complete correct configuration is:
 
 ```json
