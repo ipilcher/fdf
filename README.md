@@ -65,7 +65,7 @@ FDF forwards broadcast and multicast discovery packets between networks, so
 discovery protocols designed for "flat" networks can work in more complex
 environments.  FDF is not normally involved in routing unicast discovery
 responses; the network itself should be configured to route those packets.
-(But see the [*IP set filter*](doc/ipset-filter.md).)
+(But see the [*IP Set filter*](doc/ipset-filter.md).)
 
 > **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
 > pattern described above.  mDNS queries and responses are **both** typically
@@ -79,7 +79,8 @@ responses; the network itself should be configured to route those packets.
 
 FDF has been developed and tested on Linux and GCC.  Compatibility with other
 operating systems and compilers is unknown.  (FDF does make use of several GCC
-extensions, as well as the Linux-specific `epoll` API.)
+extensions, as well as the Linux-specific `epoll` API, and the
+[IP set filter](doc/ipset-filter.md) is Linux-specific.)
 
 FDF requires three libraries &mdash; [JSON-C](https://github.com/json-c/json-c)
 and [libmnl](https://www.netfilter.org/projects/libmnl/index.html), which are
@@ -87,8 +88,11 @@ both commonly available in Linux distribution package repositories, and
 [libSAVL](https://github.com/ipilcher/libsavl), which must be compiled and
 installed as documented
 [here](https://github.com/ipilcher/libsavl#building-and-installing-the-library).
-The development packages/files for all three libraries must be installed in
-order to build FDF and its included filters.
+The development packages or files for all three libraries must be installed in
+order to build FDF and both included filters.
+
+> **NOTE:** `libmnl` is required only by the
+> [IP set filter](doc/ipset-filter.md), which is not required.
 
 ### Compiling
 
@@ -138,17 +142,28 @@ $ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o ipset.so \
 	-I.. ipset.c -lmnl
 ```
 
-> **NOTE:** The `-std=gnu99` option is required only with older compilers (such
-> as GCC 4.8 on CentOS 7) that do not enable C99 features by default, but it
-> does no harm on newer versions.
+> **NOTE:**  The compiler options above provide maximum compatibility, across
+> GCC versions.
 >
-> Similarly, `-Wcast-align` has no effect on platforms such as x86 that don't
+> `-std=gnu99` is required only when using an older GCC version (such
+> as GCC 4.8 on CentOS 7) that does not enable C99 features by default.
+>
+> `-Wcast-align` can help to identify alignment problems on platforms that
 > differentiate (at the instruction set level) between aligned and unaligned
-> memory access.  It is useful, however, on platforms such as ARM that trigger a
-> bus error when aligned memory access instructions are used with an unaligned
-> address.  (Newer versions of GCC offer a `-Wcast-align=strict` option that
-> will warn about potential alignment problems even when building for a platform
-> that is not affected.)
+> memory access.  On these platforms, using aligned memory access instructions
+> (which are preferred for performance reasons) with an incorrectly aligned
+> address will cause a [bus error](https://en.wikipedia.org/wiki/Bus_error),
+> which will usually terminate the program.  (Even worse, the processor may
+> simply round the address down to a correctly aligned value, which will cause
+> an incorrect memory location to be read or written.)  Many of the RISC
+> processors in residential routers behave in one of these ways.
+>
+> x86 processors do not use different instructions for aligned and unaligned
+> memory access (although use of unaligned addresses may affect performance or
+> atomicity), so `-Wcast-align` has no effect when GCC is targeting an x86
+> platform.  More recent versions of GCC support `-Wcast-align=strict`, which
+> will cause GCC to issue alignment warnings even when it is targeting a
+> platform that can tolerate unaligned memory access.
 
 ## Configuration
 
