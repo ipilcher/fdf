@@ -9,21 +9,22 @@
   * [Initialization Function](#initialization-function)
   * [Cleanup Function](#cleanup-function)
   * [Match Function](#match-function)
-  * [Helper Functions](#helper-functions)
-    * [`fdf_filter_log()]`](#fdf_filter_log)
+  * [Helper APIs](#helper-apis)
+    * [`fdf_filter_log()`](#fdf_filter_log)
     * [`fdf_filter_sock_addr()`](#fdf_filter_sock_addr)
     * [`fdf_filter_netif_name()`](#fdf_filter_netif_name)
     * [`fdf_filter_set_data()`](#fdf_filter_set_data)
     * [`fdf_filter_get_data()`](#fdf_filter_get_data)
-* [**Building a Filter Module**](#building-a-filter-module)
-* [**Installing and Using a Filter Module**](#installing-and-using-a-filter-module)
+    * [`FDF_FILTER_PKT_AS()`](#fdf_filter_pkt_as)
+* [**Building, Installing, and Using a Filter Module**](#building-installing-and-using-a-filter-module)
+* [**Filter Development Best Practices**](#filter-development-best-practices)
 
 ## Introduction
 
 FDF filters are dynamically loaded modules that extend the functionality of the
 service.  FDF includes two filters &mdash; the
 [multicast DNS filter](mdns-filter.md) and the [IP set filter](ipset-filter.md),
-but additional filters can be created
+but additional filters can be created using the APIs described in this document.
 
 ## Filter API Header
 
@@ -64,12 +65,12 @@ __attribute__((nonnull))
 void fdf_filter_register(const struct fdf_filter_info *info);
 ```
 
-`api_ver` member must be set to `FDF_FILTER_API_VER`.  `init_fn`, `match_fn`,
+`api_ver` must be set to `FDF_FILTER_API_VER`.  `init_fn`, `match_fn`,
 and `cleanup_fn` are pointers to filter functions that `fdfd` will call at
 different times in the module's lifetime.
 
 * The [initialization function](#initialization-function) (`init_fn`) will be
-  called once for **each instance** of the filter module when the instance is
+  called once for **each instance** of the filter module when that instance is
   created.  It is optional (may be `NULL`) for filter modules that do not accept
   any parameters.
 
@@ -229,7 +230,8 @@ uint8_t (*fdf_filter_match_fn)(uintptr_t handle,
 * `dest` &mdash; The destination address (broadcast or multicast IP address and
   UDP port number) of the packet.
 
-* `pkt` &mdash; The packet payload (not including the IP and UDP headers).
+* `pkt` &mdash; The packet payload (not including the IP and UDP headers).  See
+  [`FDF_FILTER_PKT_AS()`](#fdf_filter_pkt_as).
 
 * `pkt_size` &mdash; The size (in octets) of the packet payload.
 
@@ -294,21 +296,279 @@ static uint8_t foo_match(const uintptr_t handle,
 }
 ```
 
-### Helper Functions
+### Helper APIS
 
-The FDF daemon provides a number of helper functions that filter modules may
-call.
+The FDF daemon provides a number of helper APIs that filter modules may use.
 
 #### `fdf_filter_log()`
 
+```C
+__attribute__((format(printf, 3, 4), nonnull))
+void fdf_filter_log(uintptr_t handle, int priority,
+		    const char *restrict format, ...);
+```
+
+Log a message via the FDF daemon.  The message may be suppressed in some
+circumstances:
+
+* If `priority` is `LOG_DEBUG` and the daemon was not executed with the `-d` (or
+  `--debug`) option, or
+
+* If `fdf_filter_log()` is called from the filter module's match
+  function (or a function called from the match function, etc.),
+  `priority` is `LOG_INFO` or `LOG_DEBUG`, and the daemon was not executed with
+  the `-p` (or `--pktlog`) option.  (**Both** `-d` and `-p` must be specified in
+  order to see `LOG_DEBUG` messages issued from within a filter module's match
+  function.)
+
+##### Arguments
+
+* `handle` &mdash; The `handle` value that was passed to the module's
+  initialization, match, or cleanup function.
+
+* `priority` &mdash; A
+  [`syslog(3)`](https://man7.org/linux/man-pages/man3/syslog.3.html)-style
+  constant that identifies the severity of the message &mdash; `LOG_DEBUG`,
+  `LOG_INFO`, ..., `LOG_EMERG`.
+
+* `format` &mdash; A
+  [`printf(3)`](https://man7.org/linux/man-pages/man3/printf.3.html)-style
+  format string for the message.  (No trailing newline is required; the daemon
+  will add it to the final message if required.)
+
+* `...` &mdash; Additional `printf(3)`-style arguments (if any) that match the
+  format string.
+
 #### `fdf_filter_sock_addr()`
+
+```C
+__attribute__((nonnull))
+const char *fdf_filter_sock_addr(uintptr_t handle,
+				 const struct sockaddr_storage *restrict addr,
+				 char *restrict dst, size_t size);
+```
+
+Converts the IPv4 or IPv6 socket address in `addr` to a textual representation
+(C string) in `dst`.  IPv4 socket addresses are formatted in standard dotted
+decimal format, followed by a colon and the decimal port number &mdash; e.g.
+`224.0.0.251:5353`; IPv6 socket addresses place the canonical form of the IPv6
+address within square brackets, followed by a colon and the decimal port number
+&mdash; e.g. `[ff02::fb]:5353`.
+
+> **NOTE:** FDF does not currently support IPv6.
+
+##### Arguments
+
+* `handle` &mdash; The `handle` value that was passed to the module's
+  initialization, match, or cleanup function.
+
+* `addr` &mdash; The address to be formatted.
+
+* `dst` &mdash; The buffer into which the formatted address will be placed.  The
+  buffer size must be at least `FDF_FILTER_SA4_LEN` (if formatting an IPv4
+  socket address) or `FDF_FILTER_SA6_LEN` (if formatting an IPv6 socket
+  address).
+
+* `size` &mdash; The size of the destination buffer.
+
+##### Return Value
+
+Returns `dst`.
 
 #### `fdf_filter_netif_name()`
 
+```C
+const char *fdf_filter_netif_name(uintptr_t handle, uintptr_t netif);
+```
+
+Retrieves the name of the network interface identified by `netif`.
+
+##### Arguments
+
+* `handle` &mdash; The `handle` value that was passed to the module's
+  initialization, match, or cleanup function.
+
+* `netif` &mdash; An opaque network interface identifier, received in the
+  match function's `in_netif` argument.
+
+##### Return Value
+
+A pointer to a C string that contains the name of the network interface.
+
 #### `fdf_filter_set_data()`
+
+```C
+union fdf_filter_data {
+	void		*p;
+	uintptr_t	u;
+	intptr_t	i;
+	_Bool		b;
+};
+
+void fdf_filter_set_data(uintptr_t handle, union fdf_filter_data data);
+```
+
+Associates arbitrary data with a filter instance.  The data can be retrieved
+with [`fdf_filter_get_data()`](#fdf_filter_get_data).
+
+##### Arguments
+
+* `handle` &mdash; The `handle` value that was passed to the module's
+  initialization, match, or cleanup function.
+
+* `data` &mdash; The data to be associated with the filter instance.
 
 #### `fdf_filter_get_data()`
 
-## Building a Filter Module
+```C
+union fdf_filter_data fdf_filter_get_data(uintptr_t handle);
+```
 
-## Installing and Using a Filter Module
+Retrieves data that that was previously associated with the filter instance by
+[`fdf_filter_set_data()`](#fdf_filter_set_data).
+
+##### Arguments
+
+* `handle` &mdash; The `handle` value that was passed to the module's
+  initialization, match, or cleanup function.
+
+##### Return Value
+
+The data that was most recently associated with the filter instance.
+
+#### `FDF_FILTER_PKT_AS()`
+
+```C
+#define FDF_FILTER_PKT_AS(type, pkt)					\
+	({								\
+		_Static_assert(__alignof__(type) <= 4,			\
+			       "alignment of " #type " too large");	\
+		(const type *)pkt;					\
+	})
+```
+
+Casts `pkt` (the packet payload that was passed to the match function) as a
+pointer to `const type`.  Issues a compile-time error if `type`'s alignment is
+too large.
+
+For example, the code below will cause a compile-time error on 64-bit platforms,
+because the alignment of `struct my_pkt` is too large.
+
+```C
+struct my_pkt {
+	uint64_t	magic_number;  /* 8-byte alignment on 64-bit */
+	uint8_t		data[];
+};
+
+/* Called from initialization function */
+static void check_pkt(const void *restrict const pkt)
+{
+	struct my_pkt *p;
+
+	p = FDF_FILTER_PKT_AS(struct my_pkt, pkt);
+}
+```
+
+##### Arguments
+
+* `type` &mdash; The C type that will be used to process the packet payload.
+
+* `pkt` &mdash; The packet payload (the [match function's](#match-function)
+  `pkt` argument).
+
+##### Return Value
+
+A pointer to the packet payload, cast to a pointer to `const type`.
+
+## Building, Installing, and Using a Filter Module
+
+Consider the following simple filter (`foo.c`), which assembles the examples
+above.
+
+```C
+#include <fdf-filter.h>
+#include <syslog.h>
+
+static _Bool foo_init(const uintptr_t handle,
+		      const int argc __attribute__((unused)),
+		      const char *const *const argv)
+{
+	fdf_filter_log(handle, LOG_DEBUG, "Instance name = %s", argv[0]);
+	return 1;
+}
+
+static void foo_cleanup(const uintptr_t handle)
+{
+	fdf_filter_log(handle, LOG_DEBUG, "All done");
+}
+
+static uint8_t foo_match(const uintptr_t handle,
+			 const struct sockaddr_storage *restrict const src
+							__attribute__((unused)),
+			 const struct sockaddr_storage *restrict const dest
+							__attribute__((unused)),
+			 const void *restrict const pkt __attribute__((unused)),
+			 const size_t pkt_size __attribute__((unused)),
+			 const uintptr_t in_netif __attribute__((unused)),
+			 uintptr_t *const fwd_netif_out __attribute__((unused)))
+{
+	/* Drop 10% of the packets */
+	if (rand() % 100 < 10) {
+		fdf_filter_log(handle, LOG_INFO, "Dropping unlucky packet");
+		return FDF_FILTER_DROP;
+	}
+	else {
+		fdf_filter_log(handle, LOG_DEBUG, "Passing packet");
+		return FDF_FILTER_PASS;
+	}
+}
+
+FDF_FILTER(foo_init, foo_match, foo_cleanup);
+```
+
+To build the module, simply compile it with the `-shared` and `-fPIC` options.
+For example:
+
+```
+$ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o foo.so foo.c
+```
+
+> **NOTE:** See the note [here](../README.md#compiling) about the `-std=gnu99`
+and `-Wcast-align` options.
+
+The FDF daemon does not search any particular directory (other than
+the system's standard library directories) for filter modules; the paths to all
+filter module files must be specified in the configuration.  Thus, there is no
+particular location to which filter modules must be installed.  The recommended
+practice, however, is to place all filter modules in a single directory:
+
+* `/usr/local/lib/fdf-filters` or `/usr/local/lib64/fdf-filters` if the module
+  is manually installed, or
+
+* `/usr/lib/fdf-filters` or `/usr/lib64/fdf-filters` if the module is installed
+  with a system package manager.
+
+The filter module can be used by including it in the FDF configuration.  For
+example:
+
+```json
+	"filters": {
+		"foo": {
+			"file": "/usr/local/lib64/fdf-filters/foo.so"
+		}
+	}
+```
+
+## Filter Development Best Practices
+
+* Don't directly assign (or cast) the match function's `pkt` argument to a
+  typed pointer.  Use the [`FDF_FILTER_PKT_AS()`](#fdf_filter_pkt_as) macro.
+
+* Use the [`fdf_filter_log()`](#fdf_filter_log) function for any error or
+  informational messages.
+
+* Ensure that the cleanup function frees all resources that the filter module
+  acquires during its lifetime, including any module-wide resources that are
+  shared between instances.  The FDF daemon itselt has no known memory or file
+  descriptor leaks, so tools such as [`valgrind`](https://valgrind.org/) can be
+  used to check for resource leaks.
