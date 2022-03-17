@@ -26,11 +26,11 @@ be automatically discovered by other devices or applications on the network.
 Examples include:
 
 * Google Chromecast devices
-  ([multicast DNS](https://en.wikipedia.org/wiki/Multicast_DNS))
+  ([multicast DNS](https://en.wikipedia.org/wiki/Multicast_DNS)),
 * DLNA media servers
-  ([SSDP](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol))
-* HDHomeRun television tuners
-* Logitech Squeezebox and UE Radio devices
+  ([SSDP](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol)),
+* HDHomeRun television tuners, and
+* Logitech Squeezebox and UE Radio devices.
 
 Most of these discovery protocols have been developed with the assumption that
 they will be used on a simple residential network with a single subnet on a
@@ -52,25 +52,25 @@ different device and traffic types and trust levels, and control which networks
 and devices are allowed to communicate with one another (and with external
 networks).  Of course, this breaks these discovery protocols.
 
-In fact, most such discovery protocols work just fine as long as the initial
-discovery message reaches the device or service to be discovered **somehow**.
-The "discoveree" typically does not verify that the discovery message originated
-on its local network; it simply sends a response directly to that message's
-source.  If the network has been configured to route the response, it will be
-received by the "discoverer," and communication between the two will proceed
-normally (assuming that the network has been configured to route all of the
-required traffic).
+Fortunately, most network discovery protocols work just fine as long as the
+initial discovery message reaches the device or service to be discovered
+**somehow**.  The "discoveree" typically does not verify that the discovery
+message originated on its local network; it simply sends a response directly to
+that message's source.  If the network has been configured to route the
+response, it will be received by the "discoverer," and communication between the
+two will proceed normally (assuming that the network has been configured to
+route all of the required traffic).
 
-FDF forwards broadcast and multicast discovery packets between
-networks, enabling discovery protocols designed for "flat" networks to work
-across multiple subnets.  FDF does **not** normally concern itself with unicast
-responses.  Routing of those packets must be enabled via the normal mechanism
-used in the network.  (But see the [*IP set filter*](doc/ipset-filter.md).)
+FDF forwards broadcast and multicast discovery packets between networks, so
+discovery protocols designed for "flat" networks can work in more complex
+environments.  FDF is not normally involved in routing unicast discovery
+responses; the network itself should be configured to route those packets.
+(But see the [*IP set filter*](doc/ipset-filter.md).)
 
 > **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
 > pattern described above.  mDNS queries and responses are **both** typically
-> sent via multicast.  Thus, both queries and responses must be forwared to
-> enable multicast DNS across different networks.  See the
+> sent via IP multicast.  Thus, both queries and responses must be forwared to
+> enable multicast DNS across separate networks.  See the
 > [*Multicast DNS filter*](doc/mdns-filter.md).
 
 ## Building
