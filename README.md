@@ -93,7 +93,7 @@ order to build FDF and its included filters.
 ### Compiling
 
 Ensure that the required libraries and development files are installed, clone
-this repository, and change to its top-level (`fdf`) directory.  For example:
+this repository, and change to its (`src`) directory.  For example:
 
 ```
 $ rpm -q json-c-devel libmnl-devel libsavl-devel
