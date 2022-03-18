@@ -410,7 +410,7 @@ configuration.  JSON-C has numerous benefits, but it does have some limitations.
   members.  As a result, FDF has no way to detect non-unique member names.
 
 * As noted above, FDF itself does not detect unexpected or unknown object
-  members in its configuration.  This is mostly harmless, but it can be a
+  members in its configuration.  This is usually harmless, but it can be a
   problem if the name of a configuration member is misspelled, because the
   misspelled member will be ignored (silently if the member is optional).
 
