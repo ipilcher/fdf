@@ -205,7 +205,7 @@ otherwise extend the functionality of the FDF daemon.  (See the
 FDF currently includes two filter modules.
 
 * The [mDNS filter](doc/mdns-filter.md) provides stateless or stateful filtering
-  of multicast DNS messages, based on the message type and contents.
+  of multicast DNS messages, based on message type and contents.
 
 * The [IP set filter](doc/ipset-filter.md) does not actually filter traffic.
   Instead it adds the **source** address and port of any packet that it
