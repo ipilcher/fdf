@@ -212,19 +212,18 @@ FDF currently includes two filter modules.
   processes to a
   [Linux netfilter IP set](https://www.netfilter.org/projects/ipset/index.html).
   With the correct firewall rules in place, this can enable "stateful" routing
-  of unicast responses to broadcast or multicast discovery packets; unicast
-  responses will be routed only during the period immediately after a discovery
-  packet has been forwarded.
+  of unicast responses to broadcast or multicast discovery packets; a unicast
+  response packet will be routed only to a destination that recently sent a
+  query of the correct type.
 
-Each member of the `filters` object defines a filter instance.  Each filter
-instance must have a unique name, which is defined by its name (key value)
-within the `filters` object.  Each filter instance must contain 1 or 2 members
-&mdash; `file` (required) and `args` (optional).  `file` must be a JSON string
-that specifies the full path of the shared object to be loaded (unless the
-shared object is within the normal library search path).  If present, `args`
-must be an array of JSON strings, which will be passed to the filter's
-initialization function to initialize the filter instance.  (The name of the
-filter instance and the path to the shared object are also passed.)
+Each member of the `filters` object defines a filter instance of that name.
+Each filter instance must contain 1 or 2 members &mdash; `file` (required) and
+`args` (optional).  `file` must be a JSON string that specifies the full path of
+the shared object to be loaded (unless the shared object is within the normal
+library search path).  If present, `args` must be an array of JSON strings,
+which will be passed to the filter's initialization function to initialize the
+filter instance.  (The name of the filter instance and the path to the shared
+object are also passed.)
 
 The configuration fragment below creates two instances of the mDNS filter and
 one instance of the IP set filter.
@@ -249,18 +248,17 @@ one instance of the IP set filter.
 ### Matches
 
 The (required) `matches` member of the configuration object defines
-address/port (or address/port/filters) tuples that uniquely identify types of
-traffic.
+address/port (or address/port/filters) tuples that identify network traffic.
+As with filter instances, the name of the JSON member determines the name of
+the match.
 
-As with filter instances, each match must have a unique name that is determined
-by its member name within the `matches` object.  Each match must be a JSON
-object that contains 2 or 3 members &mdash; `addr` (required), `port`
+Each match must contain 2 or 3 members &mdash; `addr` (required), `port`
 (required), and `filters` (optional).  `addr` must be a JSON string that
 contains an IPv4 address, in standard dotted decimal notation.  The address
 must be the IPv4 broadcast address (`255.255.255.255`) or an
 [IPv4 multicast address](https://en.wikipedia.org/wiki/Multicast_address#IPv4).
 `port` must be a JSON number (i.e. unquoted) that represents a valid UDP port
-(`1` - `65536`).
+(`1` - `65535`).
 
 > **NOTE:** FDF does not currently support IPv6.  Very few of the devices that
 > use these protocols support IPv6, and none of them are IPv6-only.  (But see
@@ -301,16 +299,17 @@ traffic, using the filter instances shown above.
 #### Filter Chaining
 
 The `mdns_query` match above is defined with multiple filter instances, a
-configuration called a filter chain.  When a packet is received by a listener
+configuration called a filter chain.  When a packet is received by a
+[listener](#listeners)
 that uses this match, the packet will be passed to each filter instance in the
-chain sequentially, unless a filter instance returns a special result value that
-stops the FDF daemon from passing the packet to subsequent instances in the
-chain.  In this configuration, the packet will first be passed to the
-`mdns_query` filter instance.  Depending on the value returned by `mdns_query`,
-the packet may then be passed to the `ipset_mdns` filter instance.
+chain sequentially (unless a filter instance returns a result value that
+terminates filter processing of the packet).  In this configuration, the packet
+will first be passed to the `mdns_query` filter instance.  Depending on the
+value returned by `mdns_query`, the packet may then be passed to the
+`ipset_mdns` filter instance.
 
-The ultimate fate of the packet (forwarded or dropped) is determined by the
-exact values returned by the filter instances in the chain.  See
+The ultimate disposition of the packet (forwarded or dropped) is determined by
+the values returned by the filter instances in the chain.  See
 [Match Function](doc/filter-api.md#match-function) for more information.
 
 > **NOTE:** It is not usually possible to arbitrarily chain filter modules.  The
