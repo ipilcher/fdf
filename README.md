@@ -409,17 +409,17 @@ configuration.  JSON-C has numerous benefits, but it does have some limitations.
   deal with non-unique member names by simply ignoring all but one of the
   members.  As a result, FDF has no way to detect non-unique member names.
 
-* As noted above, FDF itself does not detect unexpected/unknown object members
-  in its configuration.  This is mostly harmless, except in the event that the
-  name of an actual configuration member is misspelled.
+* As noted above, FDF itself does not detect unexpected or unknown object
+  members in its configuration.  This is mostly harmless, but it can be a
+  problem if the name of a configuration member is misspelled, because the
+  misspelled member will be ignored (silently if the member is optional).
 
-The first two issues can be addressed by using a seperate JSON tool that can
-validate the configuration and check for duplicate keys (member names).
-`jsonlint`, part of the [`demjson`](https://github.com/dmeranda/demjson) Python
-module, is one such tool.  A similar tool is available online at
-[`https://jsonlint.com/`](https://jsonlint.com).  The last issue can be
-addressed by the development of a suitable
-[JSON schema](https://json-schema.org) for FDF configurations.  (See
+The first two issues can be addressed by using a seperate JSON tool to validate
+the configuration and check for duplicate member names.  `jsonlint`, part of the
+[`demjson`](https://github.com/dmeranda/demjson) Python module, is one such
+tool.  A similar tool is available online at
+[`https://jsonlint.com/`](https://jsonlint.com).  The last issue could be
+addressed by with a [JSON schema](https://json-schema.org).  (See
 [this issue](https://github.com/ipilcher/fdf/issues/2).)
 
 ## Running FDF
