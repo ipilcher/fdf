@@ -205,7 +205,7 @@ otherwise extend the functionality of the FDF daemon.  (See the
 FDF currently includes two filter modules.
 
 * The [mDNS filter](doc/mdns-filter.md) provides stateless or stateful filtering
-  of multicast DNS messages, based on the message types and contents.
+  of multicast DNS messages, based on the message type and contents.
 
 * The [IP set filter](doc/ipset-filter.md) does not actually filter traffic.
   Instead it adds the **source** address and port of any packet that it
@@ -313,10 +313,10 @@ the values returned by the filter instances in the chain.  See
 [Match Function](doc/filter-api.md#match-function) for more information.
 
 > **NOTE:** It is not usually possible to arbitrarily chain filter modules.  The
-> modules being chained together must be designed for that use.  For example,
-> `mdns_query` filter instance is [defined](#filters) with `ipset=yes`.  This
-> causes the mDNS filter to behave in a way that is compatible with this use.
-> (See [IP Set Mode](doc/mdns-filter.md#ip-set-mode).)
+> modules being chained must specifically support such use.  For example, the
+> `mdns_query` filter instance [above](#filters) includes the `ipset=yes`
+> argument.  This causes the mDNS filter to behave in a way that is compatible
+> with this configuration.  (See [IP Set Mode](doc/mdns-filter.md#ip-set-mode).)
 
 ### Listeners
 
