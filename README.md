@@ -337,7 +337,7 @@ for that listener.
 
 > **NOTE:** As discussed [above](#filters), it is possible for a filter to set
 > a specific forward interface for a packet.  That interface must be one of the
-> forward interfaces listed for that listener.
+> forward interfaces listed for the listener that received the packet.
 
 For example, assume that FDF is running on a system with 4 network interfaces.
 
