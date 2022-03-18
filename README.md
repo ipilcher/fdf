@@ -320,24 +320,24 @@ the values returned by the filter instances in the chain.  See
 
 ### Listeners
 
-The (required) `listen` member of the configuration object specifies what types
-of traffic (matches) FDF will listen for, the network interfaces on which it
-will listen for that traffic, and the networks to which the traffic will be
-forwarded.
+The (required) `listen` member of the configuration object specifies the network
+interfaces on which FDF will listen, the types of traffic ([matches](#matches))
+for which it will listen on those interfaces, and the networks to which matching
+traffic will be forwarded.
 
-Each member within the `listen` object applies to a specific network interface
-on which FDF will listen.  The name of the member is the name of the network
-interface.  Within that object (the listen interface), the name of each member
-identifies a match defined in the `matches` object, and the value of each
-member must be an array of strings that list the destination network interraces
-for traffic received on that particular listen interface/match combination.
+Each member of the `listen` object identifies (by interface name) a network interface
+on which FDF will listen.  Within that listen interface object, the name of each member
+identifies a match defined in the [`matches`](#matches) object, and the value of each
+member must be a list (array) of network interface names (JSON strings).
 
-> **NOTE:** Generally, any packet received by a particular network
-> interface/match combination (and passed by the match's filter instances, if
-> any) will be forwarded to **all** of the destination interfaces listed for
-> that combination.  As discussed [above](#filters), however, it is possible for
-> a filter to set a specific destination interface, which must be one of the
-> destination interfaces listed for that interface/match combination.
+Each combination of a listen interface and a [`match`](#matches) defines a
+**listener**.  Traffic that is received by a listener (and is not dropped due to
+a filter return value) will be forwarded to all of the network interfaces listed
+for that listener.
+
+> **NOTE:** As discussed [above](#filters), it is possible for a filter to set
+> a specific forward interface for a packet.  That interface must be one of the
+> forward interfaces listed for that listener.
 
 For example, assume that FDF is running on a system with 4 network interfaces.
 
@@ -347,8 +347,8 @@ For example, assume that FDF is running on a system with 4 network interfaces.
 * `eth3` is connected to a storage network that uses jumbo frames for
   performance reasons.
 
-Consider the following configuration fragment, which builds on the `matches`
-example above.
+Consider the following configuration fragment, which builds on the examples
+above.
 
 ```json
 	"listen": {
