@@ -13,48 +13,77 @@
 
 Most network discovery protocols feature an initial discovery message, sent via
 IPv4 broadcast or IP multicast, to which "discoverees" respond with a direct
-**unicast** answer.  Often, those answers must be **routed** from an untrusted
-network to a trusted network, in response to a discovery message that was
-**forwarded** from the trusted network to the untrusted network.  A stateful
-firewall will normally drop (or reject) such response packets, because their
-relationship to the initial discovery message isn't understood by the firewall.
-(After all, the firewall didn't route the discovery packet.  Some application
-sent **something** with a raw socket, but it wasn't even addressed to the
-address from which the response packets are coming.)
+unicast answer.  When the discovery message was forwarded from a different
+network, the answers must be routed to that network if they are to reach the
+"discoverer." A stateful firewill will often reject (or drop) such packets,
+because there is no apparent relationship between the discovery message and the
+answers.
 
-The simplest solution to this problem is to unconditionally allow the responses
-to be routed.  For example:
+Consider the discovery protocol used by
+[SiliconDust](https://www.silicondust.com/) HDHomeRun television tuners.  The
+discoverer (such as the
+[HDHomeRun](https://play.google.com/store/apps/details?id=com.silicondust.view)
+app for Android) sends a UDP discovery
+message from a randomly selected source port to the IPv4 broadcast address
+(`255.255.255.255`), destination port `65001`.  An HDHomeRun tuner that receives
+this discovery packet will send a unicast response from source port `65001` to
+the address (IPv4 address and UDP port) from which the discovery packet
+originated.  I.e., the source address of the discovery packet becomes the
+destination address of the response.
+
+Assume that one or more HDHomeRun tuners is connected to a home's "IOT" network
+(`172.31.252.0/24`) and several Android TV-powered devices are connected to the
+untrusted Wi-Fi network (`172.31.253.0/24`).  FDF is configured to forward
+HDHomeRun discovery packets from the untrusted network to the IOT network, so
+that the HDHomeRun app running on the Android TV devices can connect to the
+tuner.  Routing between the networks is provided by a Linux-based system with an
+`iptables` firewall (where the FDF daemon is also running).
+
+The firewall is configured to block outbound connections from the IOT network,
+so a new rule is required to allow HDHomeRun responses (which the firewall sees
+as new connections) to be routed to the untrusted network.
 
 ```
 Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
 	︙
-    0     0 ACCEPT     udp  --  *      *       172.31.252.4         172.31.250.0/24      udp spt:65001 state NEW
+    0     0 ACCEPT     udp  --  *      *       172.31.252.0/24      172.31.253.0/24      udp spt:65001 state NEW
 	︙
 ```
 
-This example assumes that the firewall is using
-[Linux `iptables`](https://www.netfilter.org/projects/iptables/index.html).  It
-allows any packets from UDP port `65001` (the port used by HDHomeRun tuner
-discovery) at `172.31.252.4` (the known address of the tuner) to be routed to
-any address on the trusted network (`172.31.250.0/24`).  HDHomeRun tuners do not
-support static IP addressing, so absent a DHCP reservation the rule would have
-to look like this.
+> **NOTE:** This rule allows HDHomeRun responses from any address on the IOT
+> network.  HDHomeRun tuners do not support static IP address configuration, so
+> the rule can't be made more specific unless DHCP reservations are used to set
+> the addresses of the tuner(s).
+
+This allows anything on the IOT network to send UDP traffic from port `65001` to
+the untrusted network.  And because the sender controls the source port, it
+effectively allows anything connected to the IOT network to send UDP traffic to
+any address and port on the untrusted network.  Fortunately, this shouldn't be
+an issue, because that network is already considered to be untrusted.
+
+SiliconDust provides both command-line and GUI utilities to configure and
+HDHomeRun tuners.  The utilities need to run on a workstation that is connected
+to the home's trusted network (`172.31.250.0/24`).  FDF can be configured to
+forward HDHomeRun discovery packets from the trusted network to the IOT network,
+and an `iptables` rule can be added that allows the responses to be routed.
 
 ```
 Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
 	︙
+    0     0 ACCEPT     udp  --  *      *       172.31.252.0/24      172.31.253.0/24      udp spt:65001 state NEW
     0     0 ACCEPT     udp  --  *      *       172.31.252.0/24      172.31.250.0/24      udp spt:65001 state NEW
 	︙
 ```
 
-This now allows anything on the `172.31.252.0/24` network to send UDP traffic
-from port `65001` to the trusted network.  (And keep in mind that the sender
-controls the source port.)
+Now anything connected to the IOT network can send UDP traffic to any
+destination on the trusted network.  This isn't likely to be a serious problem
+by itself, but it is the type of opening that can be part of a larger exploit.
+Furthermore, it's just inelegant; the system as a whole has all of the
+information required to be more intelligent about when and where to route these
+response packets, so why can't it do so?
 
-This is unlikely to be a significant vulnerability, but it's still not ideal.
-Wouldn't it be nice to only route such traffic to the specific address and port
-from which a recent discovery packet originated?  The IP set "filter," along
-with the correct firewall configuration enables this.
+The IP set "filter," in combination with the appropriate firewall configuration,
+can enable this intelligence.
 
 > **NOTE:** "Filter" is quoted above, because the IP set filter module does not
 > actually filter traffic.  Its only purpose is to add entries to an IP set,
