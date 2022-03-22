@@ -4,8 +4,8 @@
 
 * [**Introduction**](#introduction)
 * [**IP Sets**](#ip-sets)
-  * [Creating a Set](#creating-a-set)
-  * [Persisting a Set](#persisting-a-set)
+  * [Manually Creating a Set](#manually-creating-a-set)
+  * [Automatically Creating a Set](#automatically-persisting-a-set)
   * [Using a Set](#using-a-set)
 * [**Using the Filter**](#using-the-filter)
 
@@ -101,7 +101,7 @@ IP sets can be referenced from `iptables` rules, so packets can be accepted,
 dropped, rejected, etc., based on whether their address, port, etc. is present
 in a set.
 
-### Creating a Set
+### Manually Creating a Set
 
 The IP set filter requires sets of the `hash:ip,port` type, with timeout support
 enabled.  To create a compatible set:
@@ -167,7 +167,7 @@ Number of entries: 0
 Members:
 ```
 
-### Persisting a Set
+### Automatically Creating a Set
 
 IP sets are not automatically persisted across reboots; they must be recreated
 at each boot.  This repository includes a `systemd` unit file (`ipset@.service`)
