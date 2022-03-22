@@ -110,16 +110,18 @@ enabled.  To create a compatible set:
 # ipset create HDHR_CLIENTS hash:ip,port timeout 0 hashsize 64
 ```
 
-> **NOTE:** `timeout 0` sets the default timeout of set entries to zero, which
-> means that entries will not be automatically removed from the set.  The set
-> default doesn't matter, because the IP set filter will explicitly the timeout
-> of each entry that it adds, but some timeout value must be specified in order
-> to create a set with timeout support.
+> **NOTES:**
 >
-> `hashsize 64` creates a set with the smallest possible initial memory
-> footprint.  The kernel will automatically expand the set if its initial size
-> is inadequate, and `64` will almost certainly be adequate for any home
-> network, so this is the recommended size.
+> * `timeout 0` sets the default timeout of set entries to zero, which
+>   means that entries will not be automatically removed from the set.  The set
+>   default doesn't matter, because the IP set filter will set explicitly the
+>   timeout value of each entry that it adds, but some timeout value must be
+>   specified in order to create a set with timeout support.
+>
+> * `hashsize 64` creates a set with the smallest possible initial memory
+>   footprint.  The kernel will automatically expand the set if its initial size
+>   is inadequate, and `64` will almost certainly be adequate for any home
+>   network, so this is the recommended size.
 
 Once created, the set can be displayed.
 
@@ -217,7 +219,7 @@ The set can also be destroyed (`systemctl stop`) or destroyed and recreated
 
 ### Using a Set
 
-With the set in place, it can used in the `iptables` rule.  (Again assuming that
+With the set in place, it can used in an `iptables` rule.  (Again assuming that
 the address(es) of the HDHomeRun tuner(s) aren't known.)
 
 ```
@@ -227,15 +229,18 @@ Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
 	︙
 ```
 
-> **NOTE:** The `match-set` option is provided by the `set` module.  The
-> `dst,dst` flags correspond to the data types in the set entries.  The set
-> type is `hash:ip,set`, so `dst,dst` means that the rule will match only if the
-> set contains an entry that matches the **destination** IP address and
-> **destination** port (including the IP protocol) of the packet.
+> **NOTES:**
 >
-> The complete syntax to append the above rule to the `FORWARD` chain is
-> `iptables -A FORWARD -p udp -s 172.31.252.0/24 -d 172.31.250.0/24 -m udp
-> --sport 65001 -m state --state NEW -m set --match-set HDHR_CLIENTS dst,dst`.
+> * The `match-set` option is provided by the `set` module.
+>
+> * The `dst,dst` flags correspond to the data types in the set entries.  The
+>   set type is `hash:ip,set`, so `dst,dst` means that the rule will match only
+>   if the set contains an entry that matches the **destination** IP address and
+>   **destination** port (including the IP protocol) of the packet.
+>
+> * The complete syntax to append the above rule to the `FORWARD` chain is
+>   `iptables -A FORWARD -p udp -s 172.31.252.0/24 -d 172.31.250.0/24 -m udp
+>   --sport 65001 -m state --state NEW -m set --match-set HDHR_CLIENTS dst,dst`.
 
 ## Using the Filter
 
