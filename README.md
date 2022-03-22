@@ -426,12 +426,14 @@ addressed by with a [JSON schema](https://json-schema.org).  (See
 
 ### Runtime Requirements
 
-Running `fdfd` requires that JSON-C, libSAVL, and (if using the IP set filter)
-libmnl (but not necessarily their development files) are installed.  It also has
-several network-related requirements.
+Running `fdfd` requires JSON-C, libSAVL, and (if using the IP set filter)
+libmnl.  The corresponding development files are not needed just to run the
+daemon.
 
-* Interfaces on which `fdfd` will listen for traffic must have at least one IPv4
-  address configured.  If no such address is configured, `fdfd` will not
+It also has several network-related requirements.
+
+* All interfaces on which `fdfd` will listen must have at least one
+  IPv4 address configured.  If no address is configured, `fdfd` will not
   issue any error message, because it does not make use of the IP address, but
   it will not actually receive any traffic from that interface.  (This appears
   to be a Linux kernel behavior.)
@@ -450,23 +452,25 @@ several network-related requirements.
   related to a preceding query, so the host firewall will treat them as new,
   unsolicited connections.
 
-> **NOTE:** When forwarding a packet to a network to which it would not normally
-> be routed, `fdfd` must send the packet with its source IP address unchanged
-> (i.e. set to the packet's original source address, rather than the address
-> of the system on which `fdfd` is running).  This requires a
-> [raw socket](https://man7.org/linux/man-pages/man7/raw.7.html).  In order to
-> create a raw socket, `fdfd` must be run as the `root` user or with the
-> [`CAP_NET_RAW` capability](https://man7.org/linux/man-pages/man7/capabilities.7.html).
->
-> When using the IP set filter, and running as a non-`root` user, `fdfd` must
-> be run with the `CAP_NET_ADMIN` capability, which is required to manipulate
-> IP sets.
+Finally, the daemon must run either as the `root` user or with certain
+[capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html).
+
+* In order to forward a packet, `fdfd` re-sends it with its source IP address
+  address unchanged &mdash; i.e., set to the packet's original source address,
+  rather than the address of the system on which `fdfd` is running.  This
+  requires the useof a
+  [raw socket](https://man7.org/linux/man-pages/man7/raw.7.html).  If the daemon
+  is not running as `root`, it must run with the `CAP_NET_RAW` capability.
+
+* When using the [IP set filter](doc/ipset-filter.md) as a non-`root` user,
+  `fdfd` must run with the `CAP_NET_ADMIN` capability in order to control IP
+  sets.
 
 ### Running `fdfd`
 
 To run `fdfd` from a command prompt, create a configuration file and execute
-`fdfd` with any required command line options.  `fdfd` accepts the following
-options.
+`fdfd` (usually as `root`) with any required command line options.  `fdfd`
+accepts the following options.
 
 * `-l` or `--syslog` specifies that all log messages should be sent to the
   system log.  Log messages are normally sent to `stderr` if it is connected to
