@@ -13,63 +13,68 @@
 Multicast DNS (mDNS) uses a different communication pattern than other
 discovery protocols.  Where other protocols use a broadcast (or multicast)
 discovery message and direct unicast responses, mDNS usually uses multicast
-for both queries and responses.  Both are sent to the same destination &mdash;
+for both queries and responses.  Both are sent to the same address &mdash;
 `224.0.0.251:5353` or `[ff02::fb]:5353`.  To enable mDNS-based discovery across
 different networks, both queries and responses must be forwarded.
 
-> **NOTE:** An mDNS query may contain a flag which requests a unicast response
-> (the `QU` bit).  If responders honor this request, then the traffic will
-> follow the "normal" discovery protocol pattern.
+> **NOTES:**
 >
-> (An mDNS responder may also send a unicast response if it receives a query
-> sent directly to its IP address.  Because all of the traffic in this
-> scenario is routable, no forwarding is required.)
+> * An mDNS query may contain a flag which requests a unicast response (the `QU`
+>   bit).  If responders honor this request, then the traffic will follow the
+>   "normal" discovery protocol pattern.
+>
+> * (An mDNS responder may also send a unicast response if it receives a query
+>   sent directly to its IP address.  Because all of the traffic in this
+>   scenario is routable, no forwarding is required.)
 
 ## Forwarding
 
-Several multicast DNS forwarders exist.  To my knowledge, however, all of them
-forward **all** mDNS traffic from a network to one or more other networks,
-with no differentiation between queries and answers.  This may not be
-desirable.
+Several multicast DNS forwarders exist.  To my knowledge, all of them
+forward all mDNS traffic that they receive to one or more networks, regardless
+of the type of traffic (queries or responses) or the trust levels of the
+networks.
 
-Consider a scenario with two networks &mdash; a trusted network connected to
-`eth0` and an untrusted network connected to `eth1`.  Resources on the untrusted
-network should be discoverable from the trusted network, but the reverse should
-not be true.  If all mDNS traffic is forwarded between the two networks,
-however, anything connected to the untrusted network will be able to perform
-mDNS-based discovery of resources on the trusted network.
+Consider a configuration with two networks &mdash; a trusted network connected
+to `eth0` and an untrusted network connected to `eth1`.  Resources on the
+untrusted network should be discoverable from the trusted network, but the
+reverse should not be true.  If all multicast DNS traffic is forwarded between
+the two networks, anything connected to the untrusted network will be able to
+perform mDNS-based discovery of resources on the trusted network.
 
 ## Filter
 
-The multicast DNS filter (`mdns.so`) which allows for more precise control.
-Queries and answers are identified, which allows different forwarding rules to
-be applied to messages of different types.
+The multicast DNS filter (`mdns.so`) enables FDF to provide more granular
+forwarding.  It differentiates mDNS queries and responses,  which allows
+different forwarding rules to be applied to messages of different types.  The
+filter can also operate in a stateful mode that does not forward response
+packets unnecessarily.
 
-The filter can also operate in a **stateful** mode, in which an answer is only
-forwarded if it answers a query that was previously forwarded.  More
-specifically:
+Specifically:
 
-* In **stateless** mode, the mDNS filter examines the header of the packets
-  that it receives and determines whether each packet is a query or an response.
-  Each instance of the filter is configured to pass either queries or responses
-  and drop other types of packets.  This enables a simple "directional" filter;
-  queries are forwarded from the trusted network to the untrusted network, and
-  responses can be forwarded the other way.
+* In stateless mode, the mDNS filter examines the DNS headers of the packets
+  that it receives and determines whether each packet is a query or a response.
+  Each instance of the filter is configured to only pass packets of one type.
+  Packets of the other type are dropped.  This mode provides a simple
+  "directional" filter; queries can be forwarded from a trusted network to an
+  untrusted network, while responses are forwarded in the other direction.
 
-  In this mode, an instance of the mDNS filter configured to pass responses
+  In this mode, an instance of the mDNS filter configured to forward responses
   will forward all mDNS response packets that it receives, regardless of the
-  source of the query that triggered that response (if any).
+  source of the query that triggered that response.  Thus, a query that
+  originates on an untrusted network can trigger a response on that network that
+  will be forwarded to a trusted network, even though nothing connected to the
+  trusted network cares about it.
 
-* In **stateful** mode, the filter tracks the mDNS requests that it receives
-  and the network from which it originated.  Responses that do not match a
-  request received within a configurable timeframe are dropped.  Responses that
-  do match a previous request are forwarded only to the network from which that
-  request was received.
+* In stateful mode, the filter parses the DNS names within both request and
+  response packets and tracks the network(s) from which requests originate.  A
+  response that does not match a recently forwarded query will not be forwarded,
+  and those that do match are forwarded only to the network from which the
+  triggering query originated.
 
 ## Configuration
 
-The mDNS filter accepts several parameters.  All parameters are passed in a
-`<name>=<value>` format.
+The mDNS filter accepts several parameters.  All parameters are passed as
+`<name>=<value>` pairs.
 
 The `mode` and `query_life` parameters are global.  Each of them can be
 specified at most once in the FDF configuration.
@@ -78,21 +83,16 @@ specified at most once in the FDF configuration.
   the filter will operate in stateless or stateful mode, as described
   [above](#filter).
 
-* `query_life=<seconds>` (default `30` seconds) &mdash; In **stateful** mode,
+* `query_life=<seconds>` (default `30` seconds) &mdash; In stateful mode,
   determines the lifetime of a forwarded query record.  After the lifetime has
   expired, the record is dropped, and answers that match the query will no
-  longer be forwarded.  (This parameter has no effect in **stateless** mode.)
+  longer be forwarded.  (This parameter has no effect in stateless mode.)
 
 The `forward` and `ipset` parameters operate on individual filter instances.
 Each of them can (or must) be specified for each instance of the mDNS filter.
 
 * `forward={queries|responses}` (**required**) &mdash;  Determines whether
-  this instance of the filter forwards query or response (answer) messages.
-
-  > **NOTE:** FDF filters do not actually drop or forward network traffic.
-  > The filter's `match` function returns one of several `PASS` or `DROP` values
-  > to the daemon, and the daemon's ultimate action may be affected by other
-  > filters.
+  this instance of the filter forwards query or response messages.
 
 * `ipset={yes|no|true|false}` (default `no`) &mdash; Determines whether the
   mDNS filter operates in "[IP set mode](#ip-set-mode)," which better supports
@@ -103,9 +103,9 @@ Each of them can (or must) be specified for each instance of the mDNS filter.
 The [IP set filter](ipset-filter.md) can be used to dynamically enable routing
 of unicast responses to broadcast and multicast discovery packets.  As discussed
 [above](#protocol), this is not usually needed for multicast DNS traffic,
-because mDNS responses are normally sent via multicast.  As noted, however, a
+because mDNS responses are normally sent via multicast.  As noted however, a
 multicast DNS query may request a unicast response by setting its `QU` bit.  In
-this case, there is a requirement to route a unicast response packet.
+this case, there may be a requirement to route unicast response packets.
 
 Together, the mDNS and IP set filters support this scenario through
 [filter chaining](../README.md#filter-chaining).  Returning to the example
@@ -147,8 +147,8 @@ an FDF configuration might look like this.
 }
 ```
 
-This configuration forwards (multicast) mDNS queries from `eth0` to `eth1`, and
-it forwards multicast mDNS responses from `eth1` to `eth0`.  (It uses stateful
+This configuration forwards multicast DNS queries from `eth0` to `eth1`, and
+it forwards mDNS responses from `eth1` to `eth0`.  (It uses stateful
 mode, so only responses to queries that originated on the trusted network are
 forwarded to that network.)
 
@@ -195,11 +195,16 @@ adding the IP set filter.
 }
 ```
 
-Consider a UDP packet addressed to `224.0.0.251:5353` to that is received on
-`eth0` (the trusted network interface).  Leaving aside error conditions, there
-are three possibilities:
+> **NOTE:** More information about the filter return values discussed below
+> &mdash; `FDF_FILTER_PASS`, `FDF_FILTER_DROP`, `FDF_FILTER_PASS_NOW`, and
+> `FDF_FILTER_DROP_NOW` &mdash; can be found
+> [here](filter-api.md#return-value-1).
 
-1. If the packet containes an mDNS query with the `QU` bit set, the
+Consider a multicast DNS message addressed to `224.0.0.251:5353` that is
+received on `eth0` (the trusted network interface).  Leaving aside error
+conditions, there are three possibilities:
+
+1. If the packet contains an mDNS query with the `QU` bit set, the
    `mdns_query` filter instance will return `FDF_FILTER_PASS`.  The packet will
    then be passed to the `ipset_mdns` filter instance which will add the
    packet's source IP address and port to the `MDNS_CLIENTS` IP set.  The
@@ -218,12 +223,12 @@ are three possibilities:
    `FDF_FILTER_PASS`.  FDF will forward the packet to the untrusted network.
 
    This is the desired result, except that the source address of the query has
-   been incorrectly added to the `MDNS_CLIENTS` IP set, as there is no reason to
-   expect any unicast responses to the query.
+   been unnecessarily added to the `MDNS_CLIENTS` IP set (as there is no reason
+   to expect any unicast responses to the query).
 
 3. If the packet does not contain an mDNS query (usually because it contains a
-   multicast response), the `mdns_query` filter instance will properly return
-   `FDF_FILTER_DROP`.  However, the packet will still be passed to the
+   response), the `mdns_query` filter instance will properly
+   return `FDF_FILTER_DROP`.  However, the packet will still be passed to the
    `ipset_mdns` filter instance, which will add its source address to the
    `MDNS_CLIENTS` IP set and return `FDF_FILTER_PASS` (because it does not have
    any visibility into the results of previous filters in the chain).
@@ -249,14 +254,14 @@ scenarios **2** and **3**.
   not be added to the `MDNS_CLIENTS` IP set.
 
 > **NOTE:** IP set mode does not work correctly when the mDNS filter is
-> operating in **stateless** mode.  It will not identify queries that have a
+> operating in stateless mode.  It will not identify queries that have a
 > `QU` bit set, because the questions section of an mDNS query is not parsed
 > in that mode.  As a result, a stateless mDNS filter instance with
-> `forward=queries` and `ipset=yet` will always return `FDF_FILTER_PASS_NOW` or
+> `forward=queries` and `ipset=yes` will always return `FDF_FILTER_PASS_NOW` or
 > `FDF_FILTER_DROP_NOW`.  (It will never return `FDF_FILTER_PASS`, even if it
 > processes an mDNS query with a `QU` bit set.)
 
-The complete correct configuration is:
+For reference, the complete configuration is:
 
 ```json
 {
