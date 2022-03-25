@@ -43,7 +43,7 @@ versions must match exactly.
 The value of this macro is computed from the MD5 hash of the header file itself,
 excepting the value of the `FDF_FILTER_API_VER` macro (and the value of the
 `FDF_FILTER_CTOR` macro, which is also derived from the hash).  As a result,
-**any** changes to the header, including changes to formatting and comments,
+**any** changes to the header, including changes to formatting or comments,
 will change the value of the API version.  Because the API version must match
 exactly, this will require all filter modules to be rebuilt with the new API
 version.
@@ -193,11 +193,14 @@ The match function is the workhorse of any filter module.  It is called each
 time that a packet is received by a [listener](../README.md#listeners) whose
 [match](../README.md#match) includes an instance of the filter module (unless a
 filter instance earlier in the chain stops filter execution by returning
-`FDF_FILTER_PASS_NOW`(#match-function) or `FDF_FILTER_DROP_NOW`).
+[`FDF_FILTER_PASS_NOW`](#return-value-1) or
+[`FDF_FILTER_DROP_NOW`](#return-value-1)).
 
-The match function should parse the packet payload (if necessary), determine if
-the packet should be passed or dropped, and perform any other actions that are
-required.  For example:
+The match function should parse the packet payload (if necessary), determine
+whether the packet should be passed or dropped, and perform any other actions
+that are required.
+
+Examples of other actions include:
 
 * In stateful mode, the [multicast DNS filter](mdns-filter.md) adds information
   about any queries that it forwards to a global data structure.  This data
