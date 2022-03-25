@@ -236,14 +236,14 @@ uint8_t (*fdf_filter_match_fn)(uintptr_t handle,
 * `pkt` &mdash; The packet payload (not including the IP and UDP headers).  See
   [`FDF_FILTER_PKT_AS()`](#fdf_filter_pkt_as).
 
-* `pkt_size` &mdash; The size (in octets) of the packet payload.
+* `pkt_size` &mdash; The size (in bytes) of the packet payload.
 
 * `in_netif` &mdash; An opaque value that identifies the network interface on
   which the packet was received.
 
 * `fwd_netif_out` &mdash; An output pointer that can be used to set the
   network interface to which a packet will be forwarded.  The value written via
-  the pointer must have previously been received in the `in_netif` argument.
+  the pointer must have previously been passed in the `in_netif` argument.
 
   It is an error for a filter instance to set a forward interface that is not
   valid for the listener that received the packet.  It is also an error for
@@ -256,11 +256,13 @@ The match function must return one of the following values.
 
 * `FDF_FILTER_PASS` &mdash; Forward the packet if this is the last filter
   instance in the listener's filter chain.  If it is not last in the chain, the
-  result of a subsequent filter will be dispositive.
+  disposition of the packet will be determined by the result(s) of the
+  subsequent filter(s).
 
 * `FDF_FILTER_DROP` &mdash; Drop the packet if this is the last filter
   instance in the listener's filter chain.  If it is not last in the chain, the
-  result of a subsequent filter will be dispositive.
+  disposition of the packet will be determined by the result(s) of the
+  subsequent filter(s).
 
 * `FDF_FILTER_PASS_FORCE` &mdash; Forward the packet, unless a subsequent filter
   instance returns `FDF_FILTER_DROP_FORCE` or `FDF_FILTER_DROP_NOW`.
@@ -312,10 +314,10 @@ void fdf_filter_log(uintptr_t handle, int priority,
 ```
 
 Log a message via the FDF daemon.  The message may be suppressed in some
-circumstances:
+circumstances.
 
 * If `priority` is `LOG_DEBUG` and the daemon was not executed with the `-d` (or
-  `--debug`) option, or
+  `--debug`) option.
 
 * If `fdf_filter_log()` is called from the filter module's match
   function (or a function called from the match function, etc.),
@@ -391,7 +393,7 @@ Retrieves the name of the network interface identified by `netif`.
 * `handle` &mdash; The `handle` value that was passed to the module's
   initialization, match, or cleanup function.
 
-* `netif` &mdash; An opaque network interface identifier, received in the
+* `netif` &mdash; An opaque network interface identifier that was passed in the
   match function's `in_netif` argument.
 
 ##### Return Value
@@ -485,7 +487,7 @@ A pointer to the packet payload, cast to a pointer to `const type`.
 
 ## Building, Installing, and Using a Filter Module
 
-Consider the following simple filter (`foo.c`), which assembles the examples
+Consider the following simple filter (`foo.c`), which combines the examples
 above.
 
 ```C
