@@ -54,7 +54,7 @@ struct fdf_ip4_hdr {			      /* fdf_udp4_pkt.ip4_words index */
 	uint8_t		frag_flag_reserved:1;		/* [3] */
 	uint8_t		frag_flag_df:1;
 	uint8_t		frag_flag_mf:1;
-	uint8_t		frag_offset_hi:5;
+	uint8_t		frag_offset_hi_bits:5;
 #else
 	uint8_t		frag_offset_hi_bits:5;
 	uint8_t		frag_flag_mf:1;
