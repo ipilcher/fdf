@@ -72,11 +72,11 @@ union mdns_pkt {
 				uint8_t		ad:1;
 				uint8_t		z:1;
 				uint8_t		ra:1;
-			};
-		};
 #else
 #error "__BYTE_ORDER__ is not __ORDER_BIG_ENDIAN__ or __ORDER_LITTLE_ENDIAN__"
 #endif
+			};
+		};
 		uint16_t			qdcount;
 		uint16_t			ancount;
 		uint16_t			nscount;
