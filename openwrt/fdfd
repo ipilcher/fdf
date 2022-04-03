@@ -1,0 +1,51 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=90
+STOP=15
+
+wait_for_netif() {
+
+	local NETIF=$1
+	local ATTEMPTS=0
+
+	while [ ! -e /sys/class/net/$NETIF ]; do
+		sleep 1
+		ATTEMPTS=$((ATTEMPTS+1))
+		if [ $ATTEMPTS -ge 30 ]; then
+			echo "Timed out waiting for $NETIF" >&2
+			exit 1
+		fi
+	done
+}
+
+start_service() {
+
+	local INTERFACES
+	local OPTIONS
+
+	config_load fdf
+	config_get INTERFACES daemon interfaces
+	config_get OPTIONS daemon options
+
+	for INTERFACE in $INTERFACES ; do
+		wait_for_netif $INTERFACE
+	done
+
+	procd_open_instance
+	procd_set_param command /usr/bin/fdfd $OPTIONS
+	procd_set_param file /etc/fdf-config.json
+	procd_set_param netdev $INTERFACES
+
+	# https://forum.openwrt.org/t/procd-capabilities-support-in-21-02-2/123934/2
+
+	#if [ -x /sbin/ujail -a -e /etc/capabilities/fdfd.json ]; then
+	#	procd_add_jail fdfd log requirejail
+	#	procd_add_jail_mount /usr/lib/fdf-filters
+	#	procd_set_param user nobody
+	#	procd_set_param capabilities /etc/capabilities/fdfd.json
+	#	procd_set_param no_new_privs 1
+	#fi
+
+	procd_close_instance
+}

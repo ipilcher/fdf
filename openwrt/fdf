@@ -1,0 +1,9 @@
+config startup daemon
+	# All network interfaces used by FDF
+	option interfaces 'eth0 eth1'
+	# (Optional) fdfd command-line options
+	option options '-d -p'
+
+# (Optional) IP sets to be created by the fdf-ipsets service
+config ipset SET1
+config ipset SET2
