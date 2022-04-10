@@ -484,7 +484,7 @@ $ objdump -p libsavl.so.0.7.1 | grep SONAME
 
 The library (and its header file) must be installed before it can be used to
 build FDF.  First, copy the library to the library directory and create two
-symbolic links, one that matches the library's so name and one that is
+symbolic links, one that matches the library's soname and one that is
 unversioned.
 
 ```
