@@ -337,8 +337,7 @@ $ export STAGING_DIR
 > bar
 > ```
 >
-> Now, the child shell is able to expand `$FOO`, because the variable is
-> visible.
+> Now the child shell is able to expand `$FOO`, because the variable is visible.
 
 #### Cross Compiler Executable &mdash; `XGCC`
 
