@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 MD5SUM=`sed -e '/^#define FDF_FILTER_API_VER.*$/d' \
 		-e '/^#define FDF_FILTER_CTOR.*$/d' \
