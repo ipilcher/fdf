@@ -297,7 +297,7 @@ For example, my TP-Link Archer C7 AC1750 v2 has a
 [MIPS 24Kc](https://openwrt.org/docs/techref/instructionset/mips_24kc)
 processor, and OpenWrt 21.02.2 uses GCC 8.4 and the
 [musl C library](https://musl.libc.org/).  Therefore, the staging directory is
-is `${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl`.
+`${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl`.
 
 ```
 $ ls staging_dir
