@@ -470,9 +470,9 @@ $ ln -s libsavl.so.0.7.1 ${LIB_DIR}/libsavl.so.0.7
 
 $ ln -s libsavl.so.0.7.1 ${LIB_DIR}/libsavl.so
 
-$ ls -l ${LIB_DIR}/libsavl* | awk '{ print $9 $10 $11 }'
-/mnt/scratch/openwrt/staging_dir/target-mips_24kc_musl/usr/lib/libsavl.so->libsavl.so.0.7.1
-/mnt/scratch/openwrt/staging_dir/target-mips_24kc_musl/usr/lib/libsavl.so.0.7->libsavl.so.0.7.1
+$ ls -l ${LIB_DIR}/libsavl* | awk '{ print $9 " " $10 " " $11 }'
+/mnt/scratch/openwrt/staging_dir/target-mips_24kc_musl/usr/lib/libsavl.so -> libsavl.so.0.7.1
+/mnt/scratch/openwrt/staging_dir/target-mips_24kc_musl/usr/lib/libsavl.so.0.7 -> libsavl.so.0.7.1
 /mnt/scratch/openwrt/staging_dir/target-mips_24kc_musl/usr/lib/libsavl.so.0.7.1
 ```
 
