@@ -13,7 +13,7 @@
 * [**Step 3: Build `libsavl` and FDF**](#step-3-build-libsavl-and-fdf)
   * [Step 3a: Paths and Variables](#step-3a-paths-and-variables)
     * [Build Directory &mdash; `BUILD_DIR`](#build-directory--build_dir)
-    * [Toolchain Directory &mdash; `TOOLCHAIN_DIR`](#toolchain-directory--toolchain_dir)
+    * [Staging Directory &mdash; `STAGING_DIR`](#staging-directory--staging_dir)
     * [Cross Compiler Executable &mdash; `XGCC`](#cross-compiler-executable--xgcc)
     * [Library Directory &mdash; `LIB_DIR`](#library-directory--lib_dir)
     * [Header Directory &mdash; `HEADER_DIR`](#header-directory--header_dir)
@@ -284,53 +284,78 @@ $ BUILD_DIR=`pwd`
 
 > **NOTE:** `/mnt/scratch/openwrt` is the build directory on my system.
 
-#### Toolchain Directory &mdash; `TOOLCHAIN_DIR`
+#### Staging Directory &mdash; `STAGING_DIR`
 
-The toolchain directory contains the cross compiler and related tools.  These
-tools run on the build host to create, read, and modify binary files compatible
-with the OpenWrt device.  The toolchain directory is located at
-`${BUILD_DIR}/staging_dir/toolchain-${CPU_ARCH}_gcc-${GCC_VER}_${C_LIB}/bin`,
-where `${CPU_ARCH}`, `${GCC_VER}`, and `${C_LIB}` depend on the version of
-OpenWrt and the device for which it was built.
+The staging directory contains the cross compiler and other tools that run on
+the build host to create binary files compatible with the OpenWrt device.  It
+is located at
+`${BUILD_DIR}/staging_dir/toolchain-${CPU_ARCH}_gcc-${GCC_VER}_${C_LIB}`, where
+`${CPU_ARCH}`, `${GCC_VER}`, and `${C_LIB}` depend on the version of OpenWrt
+and the device for which it was built.
 
 For example, my TP-Link Archer C7 AC1750 v2 has a
 [MIPS 24Kc](https://openwrt.org/docs/techref/instructionset/mips_24kc)
 processor, and OpenWrt 21.02.2 uses GCC 8.4 and the
-[musl C library](https://musl.libc.org/).  Therefore, the toolchain directory
-is `${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl/bin`.
+[musl C library](https://musl.libc.org/).  Therefore, the staging directory is
+is `${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl`.
 
 ```
 $ ls staging_dir
 host     packages               toolchain-_gcc-_
 hostpkg  target-mips_24kc_musl  toolchain-mips_24kc_gcc-8.4.0_musl
 
-$ ls staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl/bin
-g++-uc                         mips-openwrt-linux-ld               mips-openwrt-linux-musl-ld
-g++-uc+std                     mips-openwrt-linux-ld.bfd           mips-openwrt-linux-musl-ld.bfd
-mips-openwrt-linux-addr2line   mips-openwrt-linux-musl-addr2line   mips-openwrt-linux-musl-nm
-⋮
-mips-openwrt-linux-gcov-tool   mips-openwrt-linux-musl-gcov-tool   mips-openwrt-linux-strip
-mips-openwrt-linux-gdb         mips-openwrt-linux-musl-gdb         readelf
-mips-openwrt-linux-gprof       mips-openwrt-linux-musl-gprof
-
-$ TOOLCHAIN_DIR=${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl/bin
+$ STAGING_DIR=${BUILD_DIR}/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl
 ```
+
+Export the `STAGING_DIR` variable, so that it will be visible to the cross
+compiler.
+
+```
+$ export STAGING_DIR
+```
+
+> **NOTE:** The following commands illustrate the difference between a shell
+> variable (a variable that has not been exported) and an environment variable.
+>
+> ```
+> $ FOO=bar
+>
+> $ echo $FOO
+> bar
+>
+> $ bash -c 'echo $FOO'
+> ```
+>
+> This produces no output, because the variable `FOO` is not visible in the
+> child shell.  (The single quotes prevent the variable from being expanded by
+> the parent shell.)
+>
+> ```
+> $ export FOO
+>
+> $ bash -c 'echo $FOO'
+> bar
+> ```
+>
+> In this case, the child shell is able to expand `$FOO`, because the variable
+> is visible.
 
 #### Cross Compiler Executable &mdash; `XGCC`
 
-The cross compiler is the regular (non-symlink) file in the toolchain directory,
-whose name ends with `-gcc`.  Store the cross compiler's complete path in a
-shell variable named `XGCC`.
+The cross compiler executable is a regular (non-symlink) file in the
+`${STAGING_DIR}/bin` directory.  It is the only regular file whose name ends
+with `-gcc`.  Store the cross compiler's complete path in a shell variable named
+`XGCC`.
 
 ```
-$ XGCC=`find ${TOOLCHAIN_DIR} -name '*-gcc' -type f`
+$ XGCC=`find ${STAGING_DIR}/bin -name '*-gcc' -type f`
 
 $ echo ${XGCC}
 /mnt/scratch/openwrt/staging_dir/toolchain-mips_24kc_gcc-8.4.0_musl/bin/mips-openwrt-linux-musl-gcc
 ```
 
 > **NOTE:**  The output of the `echo` command will begin with your build
-> directory path, rather than `/mnt/scratch/openwrt`.
+> directory path, which may not be `/mnt/scratch/openwrt`.
 
 #### Library Directory &mdash; `LIB_DIR`
 
