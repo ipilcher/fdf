@@ -282,7 +282,14 @@ $ cd /mnt/scratch/openwrt
 $ BUILD_DIR=`pwd`
 ```
 
-> **NOTE:** `/mnt/scratch/openwrt` is the build directory on my system.
+> **NOTES:**
+>
+> * `/mnt/scratch/openwrt` is the build directory on my system.
+>
+> * The `BUILD_DIR` shell variable is not the same as the `build_dir`
+>   subdirectory discussed in the
+> [OpenWrt documentation](https://openwrt.org/docs/guide-developer/toolchain/buildsystem_essentials#directory_structure).
+>  (`build_dir` is a subdirectory of `${BUILD_DIR}`.)
 
 #### Staging Directory &mdash; `STAGING_DIR`
 
