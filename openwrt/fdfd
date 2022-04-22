@@ -4,6 +4,68 @@ USE_PROCD=1
 START=90
 STOP=15
 
+link_target() {
+
+	local LINK=$1
+	local TARGET=`readlink $LINK`
+
+	if [[ $TARGET =~ '^/.*' ]] ; then
+		echo $TARGET:
+	else
+		echo ${LINK%/*}/${TARGET}:
+	fi
+}
+
+elf_deps() {
+
+	local FILE=$1
+
+	ldd $FILE 2>/dev/null | while read SONAME _ SOFILE _ ; do
+
+		[ -z "$SOFILE" ] && continue
+		[ $SONAME = ldd ] && continue
+		[[ $SONAME =~ '^libc\.so.*' ]] && continue
+
+		# These are already pulled in by fdfd
+		[[ $SONAME =~ '^libgcc_s\.so.*' ]] && continue
+		[[ $SONAME =~ '^libsavl\.so.*' ]] && continue
+
+		echo $SOFILE:
+
+	done
+}
+
+direct_deps() {
+
+	local FILE=$1
+
+	if [ -L $FILE ] ; then
+		link_target $FILE
+	else
+		elf_deps $FILE
+	fi
+}
+
+all_deps() {
+
+	local UNPROCESSED=$1:
+	local ALL_DEPS=''
+	local FILE
+
+	while [ -n "$UNPROCESSED" ] ; do
+
+		FILE=${UNPROCESSED%%:*}
+		UNPROCESSED=${UNPROCESSED#*:}
+
+		[ $FILE != $1 ] && ALL_DEPS="$ALL_DEPS $FILE"
+
+		UNPROCESSED=${UNPROCESSED}$(direct_deps $FILE)
+
+	done
+
+	echo $ALL_DEPS | tr ' ' '\n' | sort -u
+}
+
 wait_for_netif() {
 
 	local NETIF=$1
@@ -16,6 +78,30 @@ wait_for_netif() {
 			echo "Timed out waiting for $NETIF" >&2
 			exit 1
 		fi
+	done
+}
+
+setup_jail() {
+
+	local FILTER
+	local FILTER_DEPS
+	local ALL_DEPS=''
+	local DEP
+
+	procd_add_jail fdfd log requirejail
+	procd_add_jail_mount /etc/fdf-config.json
+	procd_add_jail_mount /usr/lib/fdf-filters
+	procd_set_param user nobody
+	procd_set_param capabilities /etc/capabilities/fdfd.json
+	procd_set_param no_new_privs 1
+
+	for FILTER in /usr/lib/fdf-filters/* ; do
+		FILTER_DEPS=$(all_deps $FILTER)
+		ALL_DEPS=$(echo -e "${ALL_DEPS}\n${FILTER_DEPS}")
+	done
+
+	for DEP in $(echo "$ALL_DEPS" | sort -u) ; do
+		procd_add_jail_mount $DEP
 	done
 }
 
@@ -37,15 +123,7 @@ start_service() {
 	procd_set_param file /etc/fdf-config.json
 	procd_set_param netdev $INTERFACES
 
-	# https://forum.openwrt.org/t/procd-capabilities-support-in-21-02-2/123934/2
-
-	#if [ -x /sbin/ujail -a -e /etc/capabilities/fdfd.json ]; then
-	#	procd_add_jail fdfd log requirejail
-	#	procd_add_jail_mount /usr/lib/fdf-filters
-	#	procd_set_param user nobody
-	#	procd_set_param capabilities /etc/capabilities/fdfd.json
-	#	procd_set_param no_new_privs 1
-	#fi
+	[ -x /sbin/ujail -a -e /etc/capabilities/fdfd.json ] && setup_jail
 
 	procd_close_instance
 }
