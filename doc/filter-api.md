@@ -339,7 +339,7 @@ circumstances.
 * `format` &mdash; A
   [`printf(3)`](https://man7.org/linux/man-pages/man3/printf.3.html)-style
   format string for the message.  (No trailing newline is required; the daemon
-  will add it to the final message if required.)
+  will add it to the final message if needed.)
 
 * `...` &mdash; Additional `printf(3)`-style arguments (if any) that match the
   format string.
