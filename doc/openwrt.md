@@ -467,7 +467,7 @@ v0.7.1
 ```
 
 In this case, the full library version is `0.7.1` (the numeric portion of the
-name of the Git tag).  The shared object version is `0.7` (the first 2 two
+name of the Git tag).  The shared object version is `0.7` (the first two
 elements of the library version), and the soname is `libsavl.so.0.7`.
 
 #### Build the Library
