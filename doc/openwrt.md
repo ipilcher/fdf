@@ -625,15 +625,18 @@ libsavl.so.0.7.1
 ### Step 4c: Install Other Dependencies
 
 Use `opkg` to ensure that the JSON-C (`libjson-c5`) and `libmnl` (`libmnl0`)
-libraries and the `ipset` tool are all installed.
+libraries and the `ipset` tool are all installed.  Installation of the
+`procd-ujail` package is also recommended, because it will enable FDF to run
+as a non-`root` user, with limited privileges.
 
 > **NOTE:** The `libmnl0` and `ipset` packages are not required if the
 > [IP set filter](ipset-filter.md) will not be used.
 
 ```
-# for PKG in libjson-c5 libmnl0 ipset ; do opkg status $PKG ; done | grep ^Status
+# for PKG in libjson-c5 libmnl0 ipset procd-ujail ; do opkg status $PKG ; done | grep ^Status
 Status: install user installed
-Status: install ok installed
+Status: install user installed
+Status: install user installed
 Status: install user installed
 ```
 
@@ -652,14 +655,8 @@ directory for FDF filter shared objects, and copy the filters to that directory.
 
 ### Step 4e: Install the Initilization Scripts
 
-> **NOTES:**
->
-> * The `fdf-ipsets` initialization script is not required if the IP set filter
->   will not be used.
->
-> * Running as a non-`root` user, with only the required capabilities, is
->   currently disabled in the `fdfd` initialization script.  See
->   [this OpenWrt forum topic](https://forum.openwrt.org/t/procd-capabilities-support-in-21-02-2/123934).
+> **NOTE:**  The `fdf-ipsets` initialization script is not required if the IP
+> set filter will not be used.
 
 ```
 # cp fdfd fdf-ipsets /etc/init.d/
