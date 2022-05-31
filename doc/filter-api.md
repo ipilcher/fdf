@@ -203,9 +203,9 @@ that are required.
 Examples of other actions include:
 
 * In stateful mode, the [multicast DNS filter](mdns-filter.md) adds information
-  about any queries that it forwards to a global data structure.  This data
-  structure is used to determine if any response packets that it receives should
-  be forwarded.
+  about any queries that it forwards to a global data structure.  When an mDNS
+  response it received, this data structure is used to determine the network to
+  which the response should be forwarded (if any).
 
 * The [IP set filter](ipset-filter.md) adds the source address and source port
   of any packets that it processes to a kernel IP set.
