@@ -458,7 +458,7 @@ Finally, the daemon must run either as the `root` user or with certain
 * In order to forward a packet, `fdfd` re-sends it with its source IP address
   address unchanged &mdash; i.e., set to the packet's original source address,
   rather than the address of the system on which `fdfd` is running.  This
-  requires the useof a
+  requires the use of a
   [raw socket](https://man7.org/linux/man-pages/man7/raw.7.html).  If the daemon
   is not running as `root`, it must run with the `CAP_NET_RAW` capability.
 
