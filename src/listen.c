@@ -98,7 +98,7 @@ static void fdf_listen_socket(struct fdf_listener *const lstnr)
 					"address %s:%" PRIu16 ": %m",
 			  lstnr->listen_netif->name, lstnr->match->name,
 			  inet_ntoa(lstnr->match->sa.sin.sin_addr),
-			  lstnr->match->sa.sin.sin_port);
+			  ntohs(lstnr->match->sa.sin.sin_port));
 	}
 
 	err = setsockopt(lstnr->fd, SOL_SOCKET, SO_BINDTODEVICE,
