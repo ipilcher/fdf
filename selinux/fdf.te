@@ -1,0 +1,62 @@
+policy_module(fdf, 0)
+
+require {
+	type devlog_t;
+	type syslogd_var_run_t;
+	type kernel_t;
+	type node_t;
+	type user_devpts_t;
+	type howl_port_t;
+};
+
+type fdf_t;
+type fdf_exec_t;
+type fdf_lib_t;
+type fdf_etc_t;
+type fdf_port_t;
+
+init_daemon_domain(fdf_t, fdf_exec_t)
+files_type(fdf_exec_t)
+files_type(fdf_lib_t)
+files_type(fdf_etc_t)
+corenet_port(fdf_port_t)
+
+allow init_t fdf_t:process2 { nnp_transition };
+
+# syslog
+allow fdf_t self:unix_dgram_socket { create connect write };
+allow fdf_t kernel_t:unix_dgram_socket { sendto };
+allow fdf_t devlog_t:lnk_file { read };
+allow fdf_t devlog_t:sock_file { write };
+allow fdf_t syslogd_var_run_t:dir { search };
+
+# log to stderr (with runcon)
+allow fdf_t user_devpts_t:chr_file { read write append ioctl getattr };
+
+# config file
+allow fdf_t fdf_etc_t:file { read open getattr map };
+
+# filters
+allow fdf_t fdf_lib_t:dir { search };
+allow fdf_t fdf_lib_t:file { read open getattr map execute };
+
+# netlink socket (ipset/nftset filters)
+allow fdf_t self:netlink_netfilter_socket { create bind getattr write read };
+allow fdf_t self:capability { net_admin };
+
+# common UDP socket permissions
+allow fdf_t self:udp_socket { create ioctl setopt bind read };
+
+# listener sockets
+allow fdf_t fdf_port_t:udp_socket { name_bind };
+allow fdf_t node_t:udp_socket { node_bind };
+
+# sender socket
+allow fdf_t self:rawip_socket { create setopt write };
+allow fdf_t self:capability { net_raw };
+
+# mDNS port is already assigned to howl_port_t
+bool fdf_listen_mdns false;
+if (fdf_listen_mdns) {
+	allow fdf_t howl_port_t:udp_socket { name_bind };
+}
