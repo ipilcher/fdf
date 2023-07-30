@@ -22,9 +22,10 @@
 ## Introduction
 
 FDF filters are dynamically loaded modules that extend the functionality of the
-service.  FDF includes two filters &mdash; the
-[multicast DNS filter](mdns-filter.md) and the [IP set filter](ipset-filter.md),
-but additional filters can be created using the APIs described in this document.
+service.  FDF includes three filters &mdash; the
+[multicast DNS filter](mdns-filter.md), the [IP set filter](ipset-filter.md),
+and the [nftables set filter](nftset-filter.md), but additional filters can be
+created using the APIs described in this document.
 
 ## Filter API Header
 
@@ -207,8 +208,9 @@ Examples of other actions include:
   response it received, this data structure is used to determine the network to
   which the response should be forwarded (if any).
 
-* The [IP set filter](ipset-filter.md) adds the source address and source port
-  of any packets that it processes to a kernel IP set.
+* The [IP set](ipset-filter.md) and [nftables set](nftset-filter.md) filters add
+  the source address and source port of any packets that they processe to a
+  kernel IP set or nftables set.
 
 The match function must conform to the following (rather ugly) definition.
 
@@ -574,6 +576,6 @@ example:
 
 * Ensure that the cleanup function frees all resources that the filter module
   acquires during its lifetime, including any module-wide resources that are
-  shared between instances.  The FDF daemon itselt has no known memory or file
+  shared between instances.  The FDF daemon itself has no known memory or file
   descriptor leaks, so tools such as [`valgrind`](https://valgrind.org/) can be
   used to check for resource leaks.

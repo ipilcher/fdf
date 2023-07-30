@@ -65,7 +65,8 @@ FDF forwards broadcast and multicast discovery packets between networks, so
 discovery protocols designed for "flat" networks can work in more complex
 environments.  FDF is not normally involved in routing unicast discovery
 responses; the network itself should be configured to route those packets.
-(But see the [*IP Set filter*](doc/ipset-filter.md).)
+(But see the [*IP Set*](doc/ipset-filter.md) and
+[*nftables set*](doc/nftset-filter.md) filters.)
 
 > **NOTE:** The multicast DNS (mDNS) protocol does not follow the traffic
 > pattern described above.  mDNS queries and responses are **both** typically
@@ -80,7 +81,8 @@ responses; the network itself should be configured to route those packets.
 FDF has been developed and tested on Linux and GCC.  Compatibility with other
 operating systems and compilers is unknown.  (FDF does make use of several GCC
 extensions, as well as the Linux-specific `epoll` API, and the
-[IP set filter](doc/ipset-filter.md) is Linux-specific.)
+[IP set](doc/ipset-filter.md) and [nftables set](doc/nftset-filter.md) filters
+are Linux-specific.)
 
 FDF requires three libraries &mdash; [JSON-C](https://github.com/json-c/json-c)
 and [libmnl](https://www.netfilter.org/projects/libmnl/index.html), which are
@@ -92,7 +94,8 @@ The development packages or files for all three libraries must be installed in
 order to build FDF and both included filters.
 
 > **NOTE:** `libmnl` is required only by the
-> [IP set filter](doc/ipset-filter.md), which is not required.
+> [IP set](doc/ipset-filter.md) and [nftables set](doc/nftset-filter.md)
+> filters, which are not required.
 
 ### Compiling
 
@@ -130,7 +133,7 @@ $ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -o fdfd *.c -lsavl -ljson-c \
 	-ldl -Wl,--dynamic-list=symlist
 ```
 
-Build the included filters.
+Build some or all of the included filters.  For example:
 
 ```
 $ cd filters
@@ -140,6 +143,9 @@ $ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o mdns.so \
 
 $ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o ipset.so \
 	-I.. ipset.c -lmnl
+
+$ gcc -std=gnu99 -O3 -Wall -Wextra -Wcast-align -shared -fPIC -o nft-set.so \
+	-I.. nft-set.c -lmnl
 ```
 
 > **NOTE:**  The compiler options above provide maximum compatibility, across
@@ -202,7 +208,7 @@ specific network interface (see note in [**Listeners**](#listeners)), or
 otherwise extend the functionality of the FDF daemon.  (See the
 [*FDF Filter API*](doc/filter-api.md).)
 
-FDF currently includes two filter modules.
+FDF currently includes three filter modules.
 
 * The [mDNS filter](doc/mdns-filter.md) provides stateless or stateful filtering
   of multicast DNS messages, based on message type and contents.
@@ -215,6 +221,11 @@ FDF currently includes two filter modules.
   of unicast responses to broadcast or multicast discovery packets; a unicast
   response packet will be routed only to a destination that recently sent a
   query of the correct type.
+
+* The [nftables filter](doc/nftset-filter.md) is similar to the IP set filter,
+  but it uses
+  [nftables sets](https://wiki.nftables.org/wiki-nftables/index.php/Sets),
+  rather than IP sets.
 
 Each member of the `filters` object defines a filter instance of that name.
 Each filter instance must contain 1 or 2 members &mdash; `file` (required) and
@@ -426,9 +437,9 @@ addressed by with a [JSON schema](https://json-schema.org).  (See
 
 ### Runtime Requirements
 
-Running `fdfd` requires JSON-C, libSAVL, and (if using the IP set filter)
-libmnl.  The corresponding development files are not needed just to run the
-daemon.
+Running `fdfd` requires JSON-C, libSAVL, and (if using the IP set or nftables
+set filter) libmnl.  The corresponding development files are not needed just to
+run the daemon.
 
 It also has several network-related requirements.
 
@@ -462,9 +473,9 @@ Finally, the daemon must run either as the `root` user or with certain
   [raw socket](https://man7.org/linux/man-pages/man7/raw.7.html).  If the daemon
   is not running as `root`, it must run with the `CAP_NET_RAW` capability.
 
-* When using the [IP set filter](doc/ipset-filter.md) as a non-`root` user,
-  `fdfd` must run with the `CAP_NET_ADMIN` capability in order to control IP
-  sets.
+* When using the [IP set](doc/ipset-filter.md) or
+  [nftables set](doc/nftset-filter.md)as a non-`root` user, `fdfd` must run with
+  the `CAP_NET_ADMIN` capability in order to modify the set contents.
 
 ### Running `fdfd`
 

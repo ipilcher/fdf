@@ -100,17 +100,19 @@ Each of them can (or must) be specified for each instance of the mDNS filter.
 
 ### IP Set Mode
 
-The [IP set filter](ipset-filter.md) can be used to dynamically enable routing
-of unicast responses to broadcast and multicast discovery packets.  As discussed
-[above](#protocol), this is not usually needed for multicast DNS traffic,
-because mDNS responses are normally sent via multicast.  As noted however, a
-multicast DNS query may request a unicast response by setting its `QU` bit.  In
-this case, there may be a requirement to route unicast response packets.
+The [IP set filter](ipset-filter.md) (and the
+[nftables set filter](nftset-filter.md)) can be used to dynamically enable
+routing of unicast responses to broadcast and multicast discovery packets. As
+discussed [above](#protocol), this is not usually needed for multicast DNS
+traffic, because mDNS responses are normally sent via multicast.  As noted
+however, a multicast DNS query may request a unicast response by setting its
+`QU` bit.  In this case, there may be a requirement to route unicast response
+packets.
 
-Together, the mDNS and IP set filters support this scenario through
-[filter chaining](../README.md#filter-chaining).  Returning to the example
-of a trusted network connected to `eth0` and an untrusted network on `eth1`,
-an FDF configuration might look like this.
+Together, the mDNS and IP set or nftables set filters support this scenario
+through [filter chaining](../README.md#filter-chaining).  Returning to the
+example of a trusted network connected to `eth0` and an untrusted network on
+`eth1`, an FDF configuration might look like this.
 
 ```json
 {
