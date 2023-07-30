@@ -7,6 +7,7 @@ require {
 	type node_t;
 	type user_devpts_t;
 	type howl_port_t;
+	type ssdp_port_t;
 };
 
 type fdf_t;
@@ -59,4 +60,9 @@ allow fdf_t self:capability { net_raw };
 bool fdf_listen_mdns false;
 if (fdf_listen_mdns) {
 	allow fdf_t howl_port_t:udp_socket { name_bind };
+}
+
+bool fdf_listen_ssdp false;
+if (fdf_listen_ssdp) {
+	allow fdf_t ssdp_port_t:udp_socket { name_bind };
 }
