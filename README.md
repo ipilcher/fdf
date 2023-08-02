@@ -93,9 +93,14 @@ installed as documented
 The development packages or files for all three libraries must be installed in
 order to build FDF and both included filters.
 
-> **NOTE:** `libmnl` is required only by the
-> [IP set](doc/ipset-filter.md) and [nftables set](doc/nftset-filter.md)
-> filters, which are not required.
+> **NOTES:**
+>
+> * `libmnl` is required only by the [IP set](doc/ipset-filter.md) and
+>   [nftables set](doc/nftset-filter.md) filters, which are not required.
+>
+> * If FDF will be installed on a system with SELinux enabled, see
+>   [*FDF SELinux Support*](doc/selinux.md) for instructions to build, install,
+>   and configure the FDF SELinux policy module.
 
 ### Compiling
 
@@ -476,6 +481,9 @@ Finally, the daemon must run either as the `root` user or with certain
 * When using the [IP set](doc/ipset-filter.md) or
   [nftables set](doc/nftset-filter.md)as a non-`root` user, `fdfd` must run with
   the `CAP_NET_ADMIN` capability in order to modify the set contents.
+
+> **NOTE:** If FDF is running on a system with SELinux enabled, see
+> [*FDF SELinux Support*](doc/selinux.md).
 
 ### Running `fdfd`
 
