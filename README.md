@@ -91,7 +91,7 @@ both commonly available in Linux distribution package repositories, and
 installed as documented
 [here](https://github.com/ipilcher/libsavl#building-and-installing-the-library).
 The development packages or files for all three libraries must be installed in
-order to build FDF and both included filters.
+order to build FDF and all of the included filters.
 
 > **NOTES:**
 >
