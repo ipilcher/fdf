@@ -1,6 +1,6 @@
 # FDF - Flexible Discovery Forwarder
 
-&copy; 2022 Ian Pilcher <<arequipeno@gmail.com>>
+&copy; 2022, 2023 Ian Pilcher <<arequipeno@gmail.com>>
 
 * [**Introduction**](#introduction)
 * [**Building**](#building)
