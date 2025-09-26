@@ -5,10 +5,32 @@ After=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/fdfd
-User=nobody
-Group=nobody
-# CAP_NET_ADMIN is only needed when using the ipset filter
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+DynamicUser=true
+CapabilityBoundingSet=CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW
+# CAP_NET_ADMIN is only needed when using the ipset or nft-set filter
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+PrivateDevices=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=strict
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallFilter=~@resources
+#PrivateUsers=true
+ProtectProc=invisible
+UMask=0377
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
