@@ -1,0 +1,13 @@
+/usr/local/bin/fdfd			system_u:object_r:fdf_exec_t:s0
+/etc/fdf-config.json			system_u:object_r:fdf_etc_t:s0
+/usr/local/lib64/fdf-filters(/.*)?	system_u:object_r:fdf_lib_t:s0
+
+#
+# Fedora's file context rules alias /usr/local/lib64 to /usr/lib, i.e.:
+#
+#   /usr/local/lib64 = /usr/lib
+#
+# Aliases like this apply to file paths, but they do NOT apply to rules.
+# Thus the rule above will fail if this alias is present.
+#
+/usr/lib/fdf-filters(/.*)?		system_u:object_r:fdf_lib_t:s0
