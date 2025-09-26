@@ -518,7 +518,7 @@ accepts the following options.
 > to enable logging of packet-specific `DEBUG` level messages from filters.
 
 `fdfd` can also be run as a `systemd` service, using the unit file in this
-repository (`fdfd.service`).  To use the unit file unchanged, perform the
+repository (`fdf.service`).  To use the unit file unchanged, perform the
 following steps as the `root` user.
 
 * Copy the unit file to `/etc/systemd/system/`.
@@ -542,7 +542,7 @@ following steps as the `root` user.
 For example (from the top-level directory of the repository):
 
 ```
-# cp systemd/fdfd.service /etc/systemd/sytem/
+# cp systemd/fdf.service /etc/systemd/sytem/
 
 # cp src/fdfd /usr/local/bin/
 
@@ -555,17 +555,17 @@ For example (from the top-level directory of the repository):
 # systemctl daemon-reload
 
 # systemctl enable fdfd --now
-Created symlink from /etc/systemd/system/multi-user.target.wants/fdfd.service to /etc/systemd/system/fdfd.service.
+Created symlink from /etc/systemd/system/multi-user.target.wants/fdf.service to /etc/systemd/system/fdf.service.
 
 # systemctl status fdfd
-● fdfd.service - Flexible Discovery Forwarder daemon
-   Loaded: loaded (/etc/systemd/system/fdfd.service; enabled; vendor preset: disabled)
+● fdf.service - Flexible Discovery Forwarder
+   Loaded: loaded (/etc/systemd/system/fdf.service; enabled; vendor preset: disabled)
    Active: active (running) since Sat 2022-02-26 17:33:49 CST; 36s ago
  Main PID: 18317 (fdfd)
-   CGroup: /system.slice/fdfd.service
+   CGroup: /system.slice/fdf.service
            └─18317 /usr/local/bin/fdfd
 
-Feb 26 17:33:49 asterisk.penurio.us systemd[1]: Started Flexible Discovery Forwarder daemon.
+Feb 26 17:33:49 asterisk.penurio.us systemd[1]: Started Flexible Discovery Forwarder.
 Feb 26 17:33:49 asterisk.penurio.us fdfd[18317]: INFO: filter.c:214: Loaded filter (mdns_query..." ]
 Feb 26 17:33:49 asterisk.penurio.us fdfd[18317]: INFO: filter.c:214: Loaded filter (mdns_answe..." ]
 Hint: Some lines were ellipsized, use -l to show in full.

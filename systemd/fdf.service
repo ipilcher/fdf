@@ -1,5 +1,5 @@
 [Unit]
-Description=Flexible Discovery Forwarder daemon
+Description=Flexible Discovery Forwarder
 After=network-online.target
 
 [Service]
