@@ -44,6 +44,7 @@ void fdf_signal_setup(sigset_t *const oldmask)
 	if (sigaction(SIGINT, &sa, NULL) != 0)
 		FDF_PFATAL("sigaction(SIGINT)");
 }
+
 void *fdf_zalloc(const size_t size, const char *const file, const int line)
 {
 	void *result;
