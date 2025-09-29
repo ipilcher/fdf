@@ -570,3 +570,22 @@ Feb 26 17:33:49 asterisk.penurio.us fdfd[18317]: INFO: filter.c:214: Loaded filt
 Feb 26 17:33:49 asterisk.penurio.us fdfd[18317]: INFO: filter.c:214: Loaded filter (mdns_answe..." ]
 Hint: Some lines were ellipsized, use -l to show in full.
 ```
+
+## Docker
+
+If you would like to run this as a container
+
+1. ```docker build -t fdf .```
+2. ```docker run --name fdf fdf```
+
+```fdfd options:
+    -l | --syslog:  log messages to syslog
+    -e | --stderr:  log messages to stderr
+    -d | --debug: log debug level messages
+    -p | --pktlog: enable verbose packet logging
+    -c | --config: specify configuration file
+    -h | --help: show this message and exit
+```
+
+From there you may wish to pass arguments to the run command, run it through compose as a daemon, etc.
+
